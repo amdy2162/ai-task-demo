@@ -51,6 +51,22 @@ public sealed class TasksController(TaskService service) : ControllerBase
         return StatusCode(StatusCodes.Status201Created, ToResponse(item));
     }
 
+    [HttpPatch("{id:int}/status")]
+    public async Task<ActionResult<TaskResponse>> UpdateStatus(
+        int id,
+        UpdateTaskStatusRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Status is null || !Enum.IsDefined(request.Status.Value))
+        {
+            ModelState.AddModelError(nameof(request.Status), "Status must be Todo, Doing, or Done.");
+            return ValidationProblem(ModelState);
+        }
+
+        var item = await service.UpdateStatusAsync(id, request.Status.Value, cancellationToken);
+        return item is null ? NotFound() : Ok(ToResponse(item));
+    }
+
     private static TaskResponse ToResponse(TaskItem item) =>
         new(item.Id, item.Title, item.Description, item.Status, item.CreatedAt);
 }

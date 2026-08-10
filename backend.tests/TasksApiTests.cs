@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using AiTaskDemo.Api.Data;
 using AiTaskDemo.Api.DTOs;
 using AiTaskDemo.Api.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaskState = AiTaskDemo.Api.Models.TaskStatus;
 using Xunit;
@@ -141,6 +142,77 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             title = "Invalid numeric status",
             status = 99
         });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Todo")]
+    [InlineData("Doing")]
+    [InlineData("Done")]
+    public async Task Patch_updates_and_persists_each_valid_status(string targetStatus)
+    {
+        await SeedAsync(NewItem("Move me", TaskState.Todo, DateTime.UtcNow));
+        int id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/tasks/{id}/status")
+        {
+            Content = JsonContent.Create(new { status = targetStatus })
+        };
+        var response = await factory.CreateClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        var expected = Enum.Parse<TaskState>(targetStatus);
+        Assert.Equal(expected, item!.Status);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var persisted = await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Tasks.AsNoTracking().SingleAsync(task => task.Id == id);
+        Assert.Equal(expected, persisted.Status);
+    }
+
+    [Fact]
+    public async Task Patch_returns_not_found_for_unknown_id()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/tasks/99999/status")
+        {
+            Content = JsonContent.Create(new { status = "Doing" })
+        };
+
+        var response = await factory.CreateClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Blocked")]
+    public async Task Patch_rejects_missing_or_unknown_status(string? status)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/tasks/1/status")
+        {
+            Content = JsonContent.Create(new { status })
+        };
+
+        var response = await factory.CreateClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Patch_rejects_numeric_status()
+    {
+        var request = new HttpRequestMessage(HttpMethod.Patch, "/api/tasks/1/status")
+        {
+            Content = JsonContent.Create(new { status = 99 })
+        };
+
+        var response = await factory.CreateClient().SendAsync(request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
