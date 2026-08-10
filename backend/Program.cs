@@ -1,11 +1,11 @@
-using System.Text.Json.Serialization;
 using AiTaskDemo.Api.Data;
+using AiTaskDemo.Api.Models;
 using AiTaskDemo.Api.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(options =>
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false)));
+    options.JsonSerializerOptions.Converters.Add(new TaskStatusJsonConverter()));
 builder.Services.AddOpenApi();
 var databasePath = Path.Combine(builder.Environment.ContentRootPath, "tasks.db");
 builder.Services.AddDbContext<AppDbContext>(options =>

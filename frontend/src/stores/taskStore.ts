@@ -10,16 +10,25 @@ export const useTaskStore = defineStore('tasks', () => {
   const selectedStatus = ref<StatusFilter>('All')
   const isLoading = ref(false)
   const error = ref('')
+  let latestFetch = 0
 
   async function fetchTasks(): Promise<void> {
+    const fetchId = ++latestFetch
     isLoading.value = true
     error.value = ''
     try {
-      tasks.value = await getTasks(selectedStatus.value === 'All' ? undefined : selectedStatus.value)
+      const items = await getTasks(selectedStatus.value === 'All' ? undefined : selectedStatus.value)
+      if (fetchId === latestFetch) {
+        tasks.value = items
+      }
     } catch {
-      error.value = 'Unable to load tasks.'
+      if (fetchId === latestFetch) {
+        error.value = 'Unable to load tasks.'
+      }
     } finally {
-      isLoading.value = false
+      if (fetchId === latestFetch) {
+        isLoading.value = false
+      }
     }
   }
 

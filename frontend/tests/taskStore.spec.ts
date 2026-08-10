@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as taskApi from '../src/api/taskApi'
 import { useTaskStore } from '../src/stores/taskStore'
+import type { TaskItem } from '../src/types/task'
 
 vi.mock('../src/api/taskApi')
 const sample = { id: 1, title: 'Test', description: '', status: 'Todo' as const, createdAt: '2026-08-10T00:00:00Z' }
@@ -57,6 +58,26 @@ describe('taskStore', () => {
     resolve([])
     await pending
     expect(store.isLoading).toBe(false)
+  })
+
+  it('keeps the latest filter result when requests settle out of order', async () => {
+    let resolveTodo!: (items: TaskItem[]) => void
+    let resolveDoing!: (items: TaskItem[]) => void
+    vi.mocked(taskApi.getTasks)
+      .mockReturnValueOnce(new Promise(result => { resolveTodo = result }))
+      .mockReturnValueOnce(new Promise(result => { resolveDoing = result }))
+    const store = useTaskStore()
+
+    const todoRequest = store.setStatusFilter('Todo')
+    const doingRequest = store.setStatusFilter('Doing')
+    resolveDoing([{ ...sample, status: 'Doing' }])
+    await doingRequest
+    resolveTodo([sample])
+    await todoRequest
+
+    expect(store.tasks).toEqual([{ ...sample, status: 'Doing' }])
+    expect(store.isLoading).toBe(false)
+    expect(store.error).toBe('')
   })
 
   it('reports create failures', async () => {

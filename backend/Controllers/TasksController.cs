@@ -15,7 +15,8 @@ public sealed class TasksController(TaskService service) : ControllerBase
         [FromQuery] TaskState? status,
         CancellationToken cancellationToken)
     {
-        if (Request.Query.TryGetValue("status", out var rawStatus) && string.IsNullOrWhiteSpace(rawStatus))
+        if (Request.Query.TryGetValue("status", out var rawStatus) &&
+            (rawStatus.Count != 1 || !TaskStatusValidation.TryParse(rawStatus[0], out _)))
         {
             ModelState.AddModelError(nameof(status), "Status must be Todo, Doing, or Done.");
             return ValidationProblem(ModelState);
@@ -39,6 +40,12 @@ public sealed class TasksController(TaskService service) : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Title))
         {
             ModelState.AddModelError(nameof(request.Title), "Title is required.");
+            return ValidationProblem(ModelState);
+        }
+
+        if (request.Status is not null && !Enum.IsDefined(request.Status.Value))
+        {
+            ModelState.AddModelError(nameof(request.Status), "Status must be Todo, Doing, or Done.");
             return ValidationProblem(ModelState);
         }
 

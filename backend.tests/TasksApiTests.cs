@@ -59,6 +59,9 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Theory]
     [InlineData("Blocked")]
     [InlineData("99")]
+    [InlineData("1")]
+    [InlineData("0")]
+    [InlineData("Todo,Doing")]
     public async Task Get_rejects_unknown_status(string status)
     {
         var response = await factory.CreateClient().GetAsync($"/api/tasks?status={status}");
@@ -147,6 +150,28 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     }
 
     [Theory]
+    [InlineData("Todo,Doing")]
+    [InlineData("Doing,Done")]
+    public async Task Post_rejects_combined_status_without_persisting(string status)
+    {
+        int taskCount;
+        using (var scope = factory.Services.CreateScope())
+        {
+            taskCount = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.CountAsync();
+        }
+
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = "Invalid combined status",
+            status
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var verifyScope = factory.Services.CreateScope();
+        Assert.Equal(taskCount, await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.CountAsync());
+    }
+
+    [Theory]
     [InlineData("Todo")]
     [InlineData("Doing")]
     [InlineData("Done")]
@@ -215,6 +240,31 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         var response = await factory.CreateClient().SendAsync(request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Todo,Doing")]
+    [InlineData("Doing,Done")]
+    public async Task Patch_rejects_combined_status_without_persisting(string status)
+    {
+        await SeedAsync(NewItem("Keep status", TaskState.Todo, DateTime.UtcNow));
+        int id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
+        }
+
+        var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/tasks/{id}/status")
+        {
+            Content = JsonContent.Create(new { status })
+        };
+        var response = await factory.CreateClient().SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var verifyScope = factory.Services.CreateScope();
+        var persisted = await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Tasks.AsNoTracking().SingleAsync(task => task.Id == id);
+        Assert.Equal(TaskState.Todo, persisted.Status);
     }
 
     private async Task SeedAsync(params TaskItem[] items)
