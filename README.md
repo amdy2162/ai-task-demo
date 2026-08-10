@@ -171,3 +171,4 @@ ai-task-demo/
 
 - `README.md`：專案啟動、測試與使用說明
 - `SPEC.md`：需求規格與驗收規則
+- `ROLES.md`：AI Coding Agent 角色設定與分工說明
