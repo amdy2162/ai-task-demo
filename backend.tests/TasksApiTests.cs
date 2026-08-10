@@ -65,6 +65,86 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Post_creates_task_and_defaults_status_to_todo()
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = "Write tests",
+            description = "Cover the API"
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.Equal("Write tests", item!.Title);
+        Assert.Equal("Cover the API", item.Description);
+        Assert.Equal(TaskState.Todo, item.Status);
+        Assert.True(item.Id > 0);
+        Assert.NotEqual(default, item.CreatedAt);
+    }
+
+    [Theory]
+    [InlineData("Todo")]
+    [InlineData("Doing")]
+    [InlineData("Done")]
+    public async Task Post_accepts_each_explicit_valid_status(string status)
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = $"Create as {status}",
+            status
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.Equal(Enum.Parse<TaskState>(status), item!.Status);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Post_rejects_blank_title(string title)
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new { title });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_rejects_title_over_100_characters()
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = new string('x', 101)
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_rejects_unknown_status()
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = "Invalid status",
+            status = "Blocked"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Post_rejects_numeric_status()
+    {
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = "Invalid numeric status",
+            status = 99
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private async Task SeedAsync(params TaskItem[] items)
     {
         using var scope = factory.Services.CreateScope();

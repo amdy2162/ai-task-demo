@@ -17,4 +17,23 @@ public sealed class TaskService(AppDbContext db)
 
         return query.OrderByDescending(item => item.CreatedAt).ToListAsync(cancellationToken);
     }
+
+    public async Task<TaskItem> CreateAsync(
+        string title,
+        string? description,
+        TaskState? status,
+        CancellationToken cancellationToken)
+    {
+        var item = new TaskItem
+        {
+            Title = title.Trim(),
+            Description = description?.Trim() ?? string.Empty,
+            Status = status ?? TaskState.Todo,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        db.Tasks.Add(item);
+        await db.SaveChangesAsync(cancellationToken);
+        return item;
+    }
 }

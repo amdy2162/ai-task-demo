@@ -31,6 +31,26 @@ public sealed class TasksController(TaskService service) : ControllerBase
         return Ok(items.Select(ToResponse));
     }
 
+    [HttpPost]
+    public async Task<ActionResult<TaskResponse>> Create(
+        CreateTaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            ModelState.AddModelError(nameof(request.Title), "Title is required.");
+            return ValidationProblem(ModelState);
+        }
+
+        var item = await service.CreateAsync(
+            request.Title,
+            request.Description,
+            request.Status,
+            cancellationToken);
+
+        return StatusCode(StatusCodes.Status201Created, ToResponse(item));
+    }
+
     private static TaskResponse ToResponse(TaskItem item) =>
         new(item.Id, item.Title, item.Description, item.Status, item.CreatedAt);
 }

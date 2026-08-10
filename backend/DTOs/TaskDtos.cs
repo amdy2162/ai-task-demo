@@ -4,7 +4,7 @@ using TaskState = AiTaskDemo.Api.Models.TaskStatus;
 namespace AiTaskDemo.Api.DTOs;
 
 public sealed record CreateTaskRequest(
-    [property: Required, MaxLength(100)] string? Title,
+    [param: Required, MaxLength(100)] string? Title,
     string? Description,
     TaskState? Status);
 
