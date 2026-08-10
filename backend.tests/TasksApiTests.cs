@@ -47,6 +47,14 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.Equal(TaskState.Doing, item.Status);
     }
 
+    [Fact]
+    public async Task Get_rejects_empty_status()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/tasks?status=");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     [Theory]
     [InlineData("Blocked")]
     [InlineData("99")]
