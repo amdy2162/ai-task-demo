@@ -427,3 +427,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# AI Task Demo
+.worktrees/
+.superpowers/
+frontend/dist/
+backend/*.db
