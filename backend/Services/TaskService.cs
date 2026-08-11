@@ -7,6 +7,8 @@ namespace AiTaskDemo.Api.Services;
 
 public sealed class TaskService(AppDbContext db)
 {
+    private static readonly TimeSpan TaipeiOffset = TimeSpan.FromHours(8);
+
     public Task<List<TaskItem>> GetAllAsync(TaskState? status, CancellationToken cancellationToken)
     {
         var query = db.Tasks.AsNoTracking();
@@ -29,7 +31,7 @@ public sealed class TaskService(AppDbContext db)
             Title = title.Trim(),
             Description = description?.Trim() ?? string.Empty,
             Status = status ?? TaskState.Todo,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow.Add(TaipeiOffset)
         };
 
         db.Tasks.Add(item);

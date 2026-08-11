@@ -87,6 +87,23 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.NotEqual(default, item.CreatedAt);
     }
 
+    [Fact]
+    public async Task Post_creates_task_with_taipei_created_at()
+    {
+        var beforeCreate = DateTime.UtcNow.AddHours(8);
+
+        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        {
+            title = "Use Taipei time"
+        });
+
+        var afterCreate = DateTime.UtcNow.AddHours(8);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.InRange(item!.CreatedAt, beforeCreate, afterCreate);
+    }
+
     [Theory]
     [InlineData("Todo")]
     [InlineData("Doing")]
