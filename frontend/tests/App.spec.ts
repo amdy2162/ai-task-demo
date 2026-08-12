@@ -122,4 +122,42 @@ describe('App', () => {
     await failedUpdate.get('[data-test="task-status-8"]').setValue('Done')
     await vi.waitFor(() => expect(failedUpdate.text()).toContain('Unable to update task status.'))
   })
+
+  it('deletes a task and refreshes the list', async () => {
+    const item = {
+      id: 9,
+      title: 'Task to delete',
+      description: '',
+      status: 'Todo' as const,
+      createdAt: '2026-08-10T00:00:00Z',
+    }
+    vi.mocked(taskApi.getTasks).mockResolvedValue([item])
+    vi.mocked(taskApi.deleteTask).mockResolvedValue()
+    const wrapper = mountApp()
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Task to delete'))
+
+    await wrapper.get('[data-test="delete-task-9"]').trigger('click')
+
+    await vi.waitFor(() => expect(taskApi.deleteTask).toHaveBeenCalledWith(9))
+  })
+
+  it('shows error when deleting a task fails', async () => {
+    const item = {
+      id: 10,
+      title: 'Cannot delete me',
+      description: '',
+      status: 'Todo' as const,
+      createdAt: '2026-08-10T00:00:00Z',
+    }
+    vi.mocked(taskApi.getTasks).mockResolvedValue([item])
+    vi.mocked(taskApi.deleteTask).mockRejectedValue(new Error('offline'))
+    const wrapper = mountApp()
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Cannot delete me'))
+
+    await wrapper.get('[data-test="delete-task-10"]').trigger('click')
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Unable to delete task.'))
+  })
 })
