@@ -116,4 +116,13 @@ describe('taskStore', () => {
 
     expect(store.error).toBe('Unable to delete task.')
   })
+
+  it('switches view mode between list and kanban', () => {
+    const store = useTaskStore()
+    expect(store.viewMode).toBe('list')
+    store.setViewMode('kanban')
+    expect(store.viewMode).toBe('kanban')
+    store.setViewMode('list')
+    expect(store.viewMode).toBe('list')
+  })
 })
