@@ -93,4 +93,27 @@ describe('taskStore', () => {
     await store.changeStatus(1, 'Done')
     expect(store.error).toBe('Unable to update task status.')
   })
+
+  it('deletes a task then reloads the active filter', async () => {
+    vi.mocked(taskApi.deleteTask).mockResolvedValue()
+    vi.mocked(taskApi.getTasks).mockResolvedValue([])
+    const store = useTaskStore()
+    store.tasks = [sample]
+    store.selectedStatus = 'Todo'
+
+    await store.removeTask(1)
+
+    expect(taskApi.deleteTask).toHaveBeenCalledWith(1)
+    expect(taskApi.getTasks).toHaveBeenCalledWith('Todo')
+    expect(store.tasks).toEqual([])
+  })
+
+  it('reports delete failures', async () => {
+    vi.mocked(taskApi.deleteTask).mockRejectedValue(new Error('offline'))
+    const store = useTaskStore()
+
+    await store.removeTask(1)
+
+    expect(store.error).toBe('Unable to delete task.')
+  })
 })
