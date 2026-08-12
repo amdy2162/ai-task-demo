@@ -17,3 +17,11 @@ export interface CreateTaskRequest {
 export interface UpdateTaskStatusRequest {
   status: TaskStatus
 }
+
+export interface PagedResult<T> {
+  items: T[]
+  totalCount: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

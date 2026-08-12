@@ -60,6 +60,26 @@ GET /api/tasks
   - `search`: 關鍵字模糊搜尋 (比對 `title` 與 `description`)
   - `sortBy`: 排序欄位 (`title` / `status` / `createdAt`，預設為 `createdAt`)
   - `sortOrder`: 排序方向 (`asc` / `desc`，預設為 `desc`)
+  - `page`: 頁數 (整數，預設為 1，必須 >= 1)
+  - `pageSize`: 每頁筆數 (整數，預設為 20，範圍 1 ~ 100)
+- 回傳格式 (`PagedResult<TaskItem>`)：
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "title": "Task 1",
+      "description": "...",
+      "status": "Todo",
+      "createdAt": "2026-08-12T12:00:00Z"
+    }
+  ],
+  "totalCount": 1,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 1
+}
+```
 
 POST /api/tasks
 
@@ -101,10 +121,14 @@ DELETE /api/tasks/{id}
 - 可以刪除 Task
 - 可以依關鍵字模糊搜尋 Task (搜尋 `title` 與 `description`)
 - 可以依指定欄位 (`title`, `status`, `createdAt`) 與方向 (`asc`, `desc`) 動態排序 Task
+- 支援資料庫分頁查詢 (`page`, `pageSize`) 並回傳分頁元資料 (`totalCount`, `page`, `pageSize`, `totalPages`)
 - 不允許空白 title
 - title 超過 100 字回傳 400
+- status 不合法時回傳 400
+- page < 1 或 pageSize 不在 1..100 時回傳 400
 - 多視窗/多裝置操作時即時推送更新，無需手動重新整理
 - 伺服器端未處理例外統一回傳 RFC 7807 ProblemDetails 格式
+- 具備 EF Core Migrations 資料庫版本遷移機制，應用程式啟動時自動執行遷移
 - 具備 Playwright E2E 自動化測試模擬真實使用者操作（新增/驗證/看板/刪除）
 - 具備 GitHub Actions CI/CD Pipeline 在每次 Push/PR 自動執行前後端全套測試與建置檢查
 
@@ -117,3 +141,4 @@ DELETE /api/tasks/{id}
 - 空白 title 視為不合法
 - status 不合法時回傳 400
 - status 不允許數字或組合字串，例如 99、Todo,Doing
+- 資料庫採用 EF Core Migrations 進行架構版本控制

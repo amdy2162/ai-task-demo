@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as taskApi from '../src/api/taskApi'
 import { signalRService } from '../src/services/signalrService'
 import App from '../src/App.vue'
+import type { PagedResult, TaskItem } from '../src/types/task'
 
 vi.mock('../src/api/taskApi')
 vi.mock('../src/services/signalrService', () => ({
@@ -15,13 +16,29 @@ vi.mock('../src/services/signalrService', () => ({
   },
 }))
 
+const emptyPaged: PagedResult<TaskItem> = {
+  items: [],
+  totalCount: 0,
+  page: 1,
+  pageSize: 20,
+  totalPages: 0,
+}
+
+const toPaged = (items: TaskItem[]): PagedResult<TaskItem> => ({
+  items,
+  totalCount: items.length,
+  page: 1,
+  pageSize: 20,
+  totalPages: Math.ceil(items.length / 20) || 1,
+})
+
 const mountApp = () => mount(App, { global: { plugins: [createPinia()] } })
 
 describe('App', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.resetAllMocks()
-    vi.mocked(taskApi.getTasks).mockResolvedValue([])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(emptyPaged)
     vi.mocked(signalRService.isConnected).mockReturnValue(false)
   })
 
@@ -101,17 +118,17 @@ describe('App', () => {
 
     await wrapper.get('[data-test="filter"]').setValue('Doing')
 
-    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith('Doing'))
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Doing', page: 1, pageSize: 20 }))
   })
 
   it('shows loading and then the empty state', async () => {
-    let resolve!: (items: []) => void
+    let resolve!: (items: PagedResult<TaskItem>) => void
     vi.mocked(taskApi.getTasks).mockReturnValue(new Promise(result => { resolve = result }))
     const wrapper = mountApp()
 
     await vi.waitFor(() => expect(wrapper.text()).toContain('Loading tasks'))
 
-    resolve([])
+    resolve(emptyPaged)
     await vi.waitFor(() => expect(wrapper.text()).toContain('No tasks found.'))
   })
 
@@ -123,7 +140,7 @@ describe('App', () => {
       status: 'Todo' as const,
       createdAt: '2026-08-10T00:00:00Z',
     }
-    vi.mocked(taskApi.getTasks).mockResolvedValue([item])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(toPaged([item]))
     vi.mocked(taskApi.updateTaskStatus).mockResolvedValue({ ...item, status: 'Doing' })
     const wrapper = mountApp()
 
@@ -132,11 +149,11 @@ describe('App', () => {
     expect(wrapper.get('[data-test="created-at-7"]').text()).not.toBe('')
 
     await wrapper.get('[data-test="filter"]').setValue('Todo')
-    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith('Todo'))
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 }))
     await wrapper.get('[data-test="task-status-7"]').setValue('Doing')
 
     await vi.waitFor(() => expect(taskApi.updateTaskStatus).toHaveBeenCalledWith(7, 'Doing'))
-    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenLastCalledWith('Todo'))
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenLastCalledWith({ status: 'Todo', page: 1, pageSize: 20 }))
   })
 
   it('shows API errors from loading, creation, and status updates', async () => {
@@ -151,7 +168,7 @@ describe('App', () => {
     await vi.waitFor(() => expect(failedCreate.text()).toContain('Unable to create task.'))
 
     const item = { id: 8, title: 'Update me', description: 'Visible', status: 'Todo' as const, createdAt: '2026-08-10T00:00:00Z' }
-    vi.mocked(taskApi.getTasks).mockResolvedValue([item])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(toPaged([item]))
     vi.mocked(taskApi.updateTaskStatus).mockRejectedValue(new Error('offline'))
     const failedUpdate = mountApp()
     await vi.waitFor(() => expect(failedUpdate.text()).toContain('Update me'))
@@ -167,7 +184,7 @@ describe('App', () => {
       status: 'Todo' as const,
       createdAt: '2026-08-10T00:00:00Z',
     }
-    vi.mocked(taskApi.getTasks).mockResolvedValue([item])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(toPaged([item]))
     vi.mocked(taskApi.deleteTask).mockResolvedValue()
     const wrapper = mountApp()
 
@@ -186,7 +203,7 @@ describe('App', () => {
       status: 'Todo' as const,
       createdAt: '2026-08-10T00:00:00Z',
     }
-    vi.mocked(taskApi.getTasks).mockResolvedValue([item])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(toPaged([item]))
     vi.mocked(taskApi.deleteTask).mockRejectedValue(new Error('offline'))
     const wrapper = mountApp()
 

@@ -15,7 +15,9 @@ vi.mock('../src/services/signalrService', () => ({
   },
 }))
 
-const sample = { id: 1, title: 'Test', description: '', status: 'Todo' as const, createdAt: '2026-08-10T00:00:00Z' }
+const sample: TaskItem = { id: 1, title: 'Test', description: '', status: 'Todo', createdAt: '2026-08-10T00:00:00Z' }
+const pagedSample = { items: [sample], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 }
+const emptyPaged = { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }
 
 describe('taskStore', () => {
   beforeEach(() => {
@@ -23,17 +25,21 @@ describe('taskStore', () => {
     vi.resetAllMocks()
   })
 
-  it('loads tasks for the selected filter', async () => {
-    vi.mocked(taskApi.getTasks).mockResolvedValue([sample])
+  it('loads tasks for the selected filter and sets pagination state', async () => {
+    vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
     const store = useTaskStore()
     await store.setStatusFilter('Todo')
-    expect(taskApi.getTasks).toHaveBeenCalledWith('Todo')
+    expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 })
     expect(store.tasks).toEqual([sample])
+    expect(store.totalCount).toBe(1)
+    expect(store.page).toBe(1)
+    expect(store.pageSize).toBe(20)
+    expect(store.totalPages).toBe(1)
   })
 
   it('creates a task then reloads the active filter', async () => {
     vi.mocked(taskApi.createTask).mockResolvedValue(sample)
-    vi.mocked(taskApi.getTasks).mockResolvedValue([sample])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
     const store = useTaskStore()
     await store.addTask({ title: 'Test' })
     expect(taskApi.createTask).toHaveBeenCalledWith({ title: 'Test' })
@@ -42,12 +48,12 @@ describe('taskStore', () => {
 
   it('refreshes the active filter after a status update', async () => {
     vi.mocked(taskApi.updateTaskStatus).mockResolvedValue({ ...sample, status: 'Done' })
-    vi.mocked(taskApi.getTasks).mockResolvedValue([])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(emptyPaged)
     const store = useTaskStore()
     store.tasks = [sample]
     store.selectedStatus = 'Todo'
     await store.changeStatus(1, 'Done')
-    expect(taskApi.getTasks).toHaveBeenCalledWith('Todo')
+    expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 })
     expect(store.tasks).toEqual([])
   })
 
@@ -60,19 +66,19 @@ describe('taskStore', () => {
   })
 
   it('is loading until the fetch promise settles', async () => {
-    let resolve!: (items: Array<typeof sample>) => void
+    let resolve!: (items: typeof emptyPaged) => void
     vi.mocked(taskApi.getTasks).mockReturnValue(new Promise(result => { resolve = result }))
     const store = useTaskStore()
     const pending = store.fetchTasks()
     expect(store.isLoading).toBe(true)
-    resolve([])
+    resolve(emptyPaged)
     await pending
     expect(store.isLoading).toBe(false)
   })
 
   it('keeps the latest filter result when requests settle out of order', async () => {
-    let resolveTodo!: (items: TaskItem[]) => void
-    let resolveDoing!: (items: TaskItem[]) => void
+    let resolveTodo!: (items: typeof pagedSample) => void
+    let resolveDoing!: (items: typeof pagedSample) => void
     vi.mocked(taskApi.getTasks)
       .mockReturnValueOnce(new Promise(result => { resolveTodo = result }))
       .mockReturnValueOnce(new Promise(result => { resolveDoing = result }))
@@ -80,9 +86,9 @@ describe('taskStore', () => {
 
     const todoRequest = store.setStatusFilter('Todo')
     const doingRequest = store.setStatusFilter('Doing')
-    resolveDoing([{ ...sample, status: 'Doing' }])
+    resolveDoing({ items: [{ ...sample, status: 'Doing' }], totalCount: 1, page: 1, pageSize: 20, totalPages: 1 })
     await doingRequest
-    resolveTodo([sample])
+    resolveTodo(pagedSample)
     await todoRequest
 
     expect(store.tasks).toEqual([{ ...sample, status: 'Doing' }])
@@ -106,7 +112,7 @@ describe('taskStore', () => {
 
   it('deletes a task then reloads the active filter', async () => {
     vi.mocked(taskApi.deleteTask).mockResolvedValue()
-    vi.mocked(taskApi.getTasks).mockResolvedValue([])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(emptyPaged)
     const store = useTaskStore()
     store.tasks = [sample]
     store.selectedStatus = 'Todo'
@@ -114,7 +120,7 @@ describe('taskStore', () => {
     await store.removeTask(1)
 
     expect(taskApi.deleteTask).toHaveBeenCalledWith(1)
-    expect(taskApi.getTasks).toHaveBeenCalledWith('Todo')
+    expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 })
     expect(store.tasks).toEqual([])
   })
 
@@ -138,7 +144,7 @@ describe('taskStore', () => {
 
   it('starts realtime connection and handles task events', async () => {
     vi.mocked(signalRService.isConnected).mockReturnValue(true)
-    vi.mocked(taskApi.getTasks).mockResolvedValue([sample])
+    vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
     const store = useTaskStore()
     await store.startRealtime()
 
