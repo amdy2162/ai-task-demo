@@ -26,8 +26,9 @@
 
 使用者可以：
 
-- 查詢任務列表
+- 查詢任務列表（支援狀態篩選、模糊搜尋與動態排序）
 - 新增任務
+- 編輯任務（標題、描述、狀態）
 - 修改任務狀態
 - 依狀態篩選任務
 - 刪除任務
@@ -60,12 +61,25 @@
 
 | Method / Protocol | Endpoint | 說明 |
 | --- | --- | --- |
-| GET | `/api/tasks` | 查詢所有任務 |
-| GET | `/api/tasks?status=Todo` | 依狀態篩選任務 |
+| GET | `/api/tasks` | 查詢所有任務（支援 `status` 篩選、`search` 模糊搜尋、`sortBy` 排序 `title`\|`status`\|`createdAt`、`sortOrder` `asc`\|`desc`） |
 | POST | `/api/tasks` | 新增任務 |
+| PUT | `/api/tasks/{id}` | 編輯任務（更新標題、描述與狀態，成功後廣播 `TaskUpdated`） |
 | PATCH | `/api/tasks/{id}/status` | 修改任務狀態 |
 | DELETE | `/api/tasks/{id}` | 刪除任務 |
 | SignalR | `/hubs/tasks` | 即時通訊 Hub（廣播 `TaskCreated`, `TaskUpdated`, `TaskDeleted` 事件） |
+
+## 全域例外處理 (Global Exception Handling)
+
+後端採用 `GlobalExceptionMiddleware` 統一捕捉未處理之例外狀況，傳回符合 **RFC 7807** 標準的 `ProblemDetails` JSON 格式（`application/problem+json`）：
+
+```json
+{
+  "title": "An unexpected error occurred on the server.",
+  "status": 500,
+  "detail": "Exception error message",
+  "instance": "/api/tasks"
+}
+```
 
 ## 啟動後端
 

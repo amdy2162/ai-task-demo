@@ -285,6 +285,65 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Put_updates_task_fields_and_persists()
+    {
+        await SeedAsync(NewItem("Original Title", TaskState.Todo, DateTime.UtcNow));
+        int id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
+        }
+
+        var response = await factory.CreateClient().PutAsJsonAsync($"/api/tasks/{id}", new
+        {
+            title = "Updated Title",
+            description = "Updated Description",
+            status = "Doing"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.Equal("Updated Title", item!.Title);
+        Assert.Equal("Updated Description", item.Description);
+        Assert.Equal(TaskState.Doing, item.Status);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var persisted = await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Tasks.AsNoTracking().SingleAsync(task => task.Id == id);
+        Assert.Equal("Updated Title", persisted.Title);
+        Assert.Equal("Updated Description", persisted.Description);
+        Assert.Equal(TaskState.Doing, persisted.Status);
+    }
+
+    [Fact]
+    public async Task Put_returns_not_found_for_unknown_id()
+    {
+        var response = await factory.CreateClient().PutAsJsonAsync("/api/tasks/99999", new
+        {
+            title = "Valid Title",
+            description = "Valid Description",
+            status = "Todo"
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Put_rejects_blank_title(string title)
+    {
+        var response = await factory.CreateClient().PutAsJsonAsync("/api/tasks/1", new
+        {
+            title,
+            description = "Some description",
+            status = "Todo"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_removes_task_and_returns_no_content()
     {
         await SeedAsync(NewItem("Task to delete", TaskState.Todo, DateTime.UtcNow));
@@ -319,6 +378,36 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Get_searches_by_keyword_in_title_and_description()
+    {
+        await SeedAsync(
+            NewItem("Frontend design", "Fix button style", TaskState.Todo, DateTime.UtcNow),
+            NewItem("Backend API", "Add SignalR Hub", TaskState.Doing, DateTime.UtcNow),
+            NewItem("Write documentation", "Summarize frontend features", TaskState.Done, DateTime.UtcNow));
+
+        var items = await factory.CreateClient()
+            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?search=frontend", JsonOptions);
+
+        Assert.Equal(2, items!.Count);
+        Assert.Contains(items, x => x.Title == "Frontend design");
+        Assert.Contains(items, x => x.Title == "Write documentation");
+    }
+
+    [Fact]
+    public async Task Get_sorts_by_title_ascending()
+    {
+        await SeedAsync(
+            NewItem("Charlie", TaskState.Todo, DateTime.UtcNow),
+            NewItem("Alice", TaskState.Todo, DateTime.UtcNow),
+            NewItem("Bob", TaskState.Todo, DateTime.UtcNow));
+
+        var items = await factory.CreateClient()
+            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?sortBy=title&sortOrder=asc", JsonOptions);
+
+        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, items!.Select(x => x.Title));
+    }
+
     private async Task SeedAsync(params TaskItem[] items)
     {
         using var scope = factory.Services.CreateScope();
@@ -329,6 +418,9 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         await db.SaveChangesAsync();
     }
 
+    private static TaskItem NewItem(string title, string description, TaskState status, DateTime createdAt) =>
+        new() { Title = title, Description = description, Status = status, CreatedAt = createdAt };
+
     private static TaskItem NewItem(string title, TaskState status, DateTime createdAt) =>
-        new() { Title = title, Description = string.Empty, Status = status, CreatedAt = createdAt };
+        NewItem(title, string.Empty, status, createdAt);
 }

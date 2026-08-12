@@ -15,6 +15,9 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TaskResponse>>> GetAll(
         [FromQuery] TaskState? status,
+        [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortOrder,
         CancellationToken cancellationToken)
     {
         if (Request.Query.TryGetValue("status", out var rawStatus) &&
@@ -30,7 +33,7 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
             return ValidationProblem(ModelState);
         }
 
-        var items = await service.GetAllAsync(status, cancellationToken);
+        var items = await service.GetAllAsync(status, search, sortBy, sortOrder, cancellationToken);
         return Ok(items.Select(ToResponse));
     }
 
@@ -60,6 +63,41 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         var response = ToResponse(item);
         await hubContext.Clients.All.SendAsync("TaskCreated", response, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, response);
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<TaskResponse>> Update(
+        int id,
+        UpdateTaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            ModelState.AddModelError(nameof(request.Title), "Title is required.");
+            return ValidationProblem(ModelState);
+        }
+
+        if (request.Status is null || !Enum.IsDefined(request.Status.Value))
+        {
+            ModelState.AddModelError(nameof(request.Status), "Status must be Todo, Doing, or Done.");
+            return ValidationProblem(ModelState);
+        }
+
+        var item = await service.UpdateAsync(
+            id,
+            request.Title,
+            request.Description,
+            request.Status.Value,
+            cancellationToken);
+
+        if (item is null)
+        {
+            return NotFound();
+        }
+
+        var response = ToResponse(item);
+        await hubContext.Clients.All.SendAsync("TaskUpdated", response, cancellationToken);
+        return Ok(response);
     }
 
     [HttpPatch("{id:int}/status")]
