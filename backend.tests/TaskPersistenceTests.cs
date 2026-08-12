@@ -21,12 +21,21 @@ public sealed class TaskPersistenceTests
         await using (var writeContext = new AppDbContext(options))
         {
             await writeContext.Database.EnsureCreatedAsync();
+            var user = new User
+            {
+                Username = "persistence_user",
+                PasswordHash = "hash"
+            };
+            writeContext.Users.Add(user);
+            await writeContext.SaveChangesAsync();
+
             writeContext.Tasks.Add(new TaskItem
             {
                 Title = "Review generated code",
                 Description = "Check API behavior",
                 Status = TaskState.Doing,
-                CreatedAt = new DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc)
+                CreatedAt = new DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc),
+                UserId = user.Id
             });
             await writeContext.SaveChangesAsync();
         }

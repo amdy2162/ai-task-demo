@@ -61,12 +61,15 @@
 
 | Method / Protocol | Endpoint | 說明 |
 | --- | --- | --- |
-| GET | `/api/tasks` | 查詢任務列表（支援 `status` 篩選、`search` 模糊搜尋、`sortBy` 排序 `title`\|`status`\|`createdAt`、`sortOrder` `asc`\|`desc`，以及 `page`、`pageSize` 分頁查詢，回傳 `PagedResult` 包含 `totalCount` 與 `totalPages`） |
-| POST | `/api/tasks` | 新增任務 |
-| PUT | `/api/tasks/{id}` | 編輯任務（更新標題、描述與狀態，成功後廣播 `TaskUpdated`） |
-| PATCH | `/api/tasks/{id}/status` | 修改任務狀態 |
-| DELETE | `/api/tasks/{id}` | 刪除任務 |
-| SignalR | `/hubs/tasks` | 即時通訊 Hub（廣播 `TaskCreated`, `TaskUpdated`, `TaskDeleted` 事件） |
+| POST | `/api/auth/register` | 使用者註冊（建立帳號並發行 JWT Token） |
+| POST | `/api/auth/login` | 使用者登入（驗證帳密並發行 JWT Token） |
+| GET | `/api/auth/me` | 取得當前登入使用者的個人 Profile |
+| GET | `/api/tasks` | 查詢個人任務列表（需 JWT Token，支援 `status` 篩選、`search` 模糊搜尋、`sortBy` 排序、`page` 分頁等） |
+| POST | `/api/tasks` | 新增個人任務（需 JWT Token） |
+| PUT | `/api/tasks/{id}` | 編輯個人任務（需 JWT Token，限擁有者，成功後僅向該使用者廣播 `TaskUpdated`） |
+| PATCH | `/api/tasks/{id}/status` | 修改個人任務狀態（需 JWT Token，限擁有者） |
+| DELETE | `/api/tasks/{id}` | 刪除個人任務（需 JWT Token，限擁有者） |
+| SignalR | `/hubs/tasks` | 即時通訊 Hub（需 JWT Token，僅針對連線使用者廣播 `TaskCreated`, `TaskUpdated`, `TaskDeleted` 事件） |
 
 ## 全域例外處理 (Global Exception Handling)
 
@@ -81,7 +84,27 @@
 }
 ```
 
-## 啟動後端
+## 🐳 使用 Docker Compose 一鍵啟動（推薦）
+
+專案支援 Docker 容器化，不需在本機安裝 .NET 或 Node.js，只要安裝 Docker 即可一鍵啟動完整系統：
+
+```powershell
+# 一鍵建置並啟動前後端容器
+docker compose up --build
+```
+
+啟動後即可存取：
+- **前端 Web 介面 (Nginx)**: `http://localhost:8080`
+- **後端 Web API (.NET 10)**: `http://localhost:5000`
+
+若要停止容器：
+```powershell
+docker compose down
+```
+
+## 本機開發啟動方式 (手動)
+
+### 啟動後端
 
 在專案根目錄執行：
 
@@ -96,7 +119,7 @@ dotnet run --project backend/AiTaskDemo.Api.csproj --urls http://localhost:5000
 http://localhost:5000
 ```
 
-## 啟動前端
+### 啟動前端
 
 另開一個 PowerShell：
 
@@ -213,16 +236,36 @@ ai-task-demo/
    └─ Program.cs
 ```
 
-## Demo 測試流程
+## Demo 測試流程 (基本功能與即時同步)
 
-1. 啟動後端
-2. 啟動前端
-3. 開啟兩個瀏覽器視窗存取 `http://localhost:5173`（驗證多視窗即時同步）
-4. 在一邊新增一筆任務，確認另一邊即時同步顯示
-5. 使用狀態篩選
-6. 在一邊修改任務狀態，確認另一邊即時同步更新
-7. 測試空白 title 與超過 100 字 title
-8. 在一邊刪除任務，確認另一邊即時同步刪除並更新清單
+1. 啟動後端與前端 (或使用 `docker compose up --build` 啟動)。
+2. 開啟兩個**相同使用者帳號**的瀏覽器視窗（或一個 Chrome，一個 Edge 登入同一個帳號）存取 `http://localhost:5173`（驗證多視窗即時同步）。
+3. 在一邊新增一筆任務，確認另一邊即時同步顯示。
+4. 使用狀態篩選。
+5. 在一邊修改任務狀態，確認另一邊即時同步更新。
+6. 測試空白 title 與超過 100 字 title 的驗證錯誤。
+7. 在一邊刪除任務，確認另一邊即時同步刪除並更新清單。
+
+## 多用戶資料隔離測試說明 (Multi-User Isolation)
+
+為驗證多用戶任務隔離與 SignalR 推播隔離，請依下列步驟操作：
+
+1. **啟動環境**：
+   - 執行 `docker compose up --build` 啟動 Docker 容器，或手動啟動本機前後端服務。
+2. **開啟兩個不同瀏覽器工作階段**：
+   - 開啟 **瀏覽器 A** (例如 Chrome 正常模式) 存取 `http://localhost:5173`。
+   - 開啟 **瀏覽器 B** (例如 Chrome 無痕模式/Incognito，或使用另一個瀏覽器如 Firefox) 存取相同網址。
+3. **註冊並登入 User A**：
+   - 在 **瀏覽器 A** 中，點擊 `Get Started` 並註冊使用者 `UserA`。
+   - 登入後，建立一個任務，標題為 `UserA 的私有任務`。
+4. **註冊並登入 User B**：
+   - 在 **瀏覽器 B** 中，點擊 `Get Started` 並註冊使用者 `UserB`。
+   - 登入後，驗證任務清單為空，**確認看不到 User A 建立的 `UserA 的私有任務`** (驗證資料隔離)。
+5. **測試即時推播隔離 (SignalR Separation)**：
+   - 在 **瀏覽器 A (User A)** 中新增一筆任務或變更任務狀態。
+   - 觀察 **瀏覽器 B (User B)**，確認**完全不會收到任何即時更新廣播**（驗證 SignalR 按使用者隔離推播）。
+6. **測試非授權存取阻斷**：
+   - User B 無法存取 User A 的任務。若企圖透過 API 測試工具 (如 Postman) 帶 User B 的 Token 呼叫 `DELETE /api/tasks/{UserA_Task_Id}`，後端將阻斷並回傳 `404 Not Found`。
 
 ## 文件說明
 

@@ -16,6 +16,8 @@ vi.mock('../src/services/signalrService', () => ({
   },
 }))
 
+import { useAuthStore } from '../src/stores/authStore'
+
 const emptyPaged: PagedResult<TaskItem> = {
   items: [],
   totalCount: 0,
@@ -32,7 +34,14 @@ const toPaged = (items: TaskItem[]): PagedResult<TaskItem> => ({
   totalPages: Math.ceil(items.length / 20) || 1,
 })
 
-const mountApp = () => mount(App, { global: { plugins: [createPinia()] } })
+const mountApp = () => {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const authStore = useAuthStore()
+  authStore.token = 'mocked-jwt-token'
+  authStore.user = { id: 1, username: 'testuser' }
+  return mount(App, { global: { plugins: [pinia] } })
+}
 
 describe('App', () => {
   beforeEach(() => {

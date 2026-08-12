@@ -24,9 +24,11 @@ export const useTaskStore = defineStore('tasks', () => {
     viewMode.value = mode
   }
 
-  async function fetchTasks(): Promise<void> {
+  async function fetchTasks(silent = false): Promise<void> {
     const fetchId = ++latestFetch
-    isLoading.value = true
+    if (!silent && tasks.value.length === 0) {
+      isLoading.value = true
+    }
     error.value = ''
     try {
       const data = await getTasks({
@@ -43,7 +45,7 @@ export const useTaskStore = defineStore('tasks', () => {
           totalPages.value = data.totalPages ?? 1
         } else if (Array.isArray(data)) {
           tasks.value = data
-          totalCount.value = data.length
+          totalCount.value = (data as TaskItem[]).length
         }
       }
     } catch {
@@ -65,8 +67,14 @@ export const useTaskStore = defineStore('tasks', () => {
   async function addTask(request: CreateTaskRequest): Promise<boolean> {
     error.value = ''
     try {
-      await createTask(request)
-      await fetchTasks()
+      const created = await createTask(request)
+      if (created && !tasks.value.some(t => t.id === created.id)) {
+        // 如果當前篩選是 All 或與新建立的任務狀態一致，立即插入清單最上方
+        if (selectedStatus.value === 'All' || selectedStatus.value === created.status) {
+          tasks.value = [created, ...tasks.value]
+        }
+        totalCount.value++
+      }
       return true
     } catch {
       error.value = 'Unable to create task.'
@@ -76,27 +84,51 @@ export const useTaskStore = defineStore('tasks', () => {
 
   async function changeStatus(id: number, status: TaskStatus): Promise<void> {
     error.value = ''
+    const target = tasks.value.find(t => t.id === id)
+    const originalStatus = target?.status
+
+    // 樂觀更新：立即在原地修改狀態
+    if (target) {
+      target.status = status
+      if (selectedStatus.value !== 'All' && selectedStatus.value !== status) {
+        tasks.value = tasks.value.filter(t => t.id !== id)
+      }
+    }
+
     try {
       await updateTaskStatus(id, status)
-      await fetchTasks()
     } catch {
+      // 失敗時復原
+      if (target && originalStatus) {
+        target.status = originalStatus
+      }
       error.value = 'Unable to update task status.'
     }
   }
 
   async function removeTask(id: number): Promise<void> {
     error.value = ''
+    const previousTasks = [...tasks.value]
+    const previousTotal = totalCount.value
+
+    // 樂觀更新：0ms 立即從畫面移除
+    tasks.value = tasks.value.filter(t => t.id !== id)
+    totalCount.value = Math.max(0, totalCount.value - 1)
+
     try {
       await deleteTask(id)
-      await fetchTasks()
     } catch {
+      // 失敗時復原原本的陣列
+      tasks.value = previousTasks
+      totalCount.value = previousTotal
       error.value = 'Unable to delete task.'
     }
   }
 
   async function startRealtime(): Promise<void> {
     signalRService.onTaskEvent(() => {
-      void fetchTasks()
+      // SignalR 收到通知時進行靜默背景同步，不觸發全螢幕 loading
+      void fetchTasks(true)
     })
     await signalRService.start()
     isRealtimeConnected.value = signalRService.isConnected()

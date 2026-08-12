@@ -1,0 +1,56 @@
+# ==============================================================================
+# Docker Compose 容器編排設定檔 (docker-compose.yml)
+# ==============================================================================
+# 目的：定義並一鍵啟動整個「前後端整合任務管理系統」
+# 使用方式：在專案根目錄輸入 `docker compose up --build` 即可同時啟動前後端！
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 服務 1：ASP.NET Core Web API 後端服務
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai-task-backend
+    restart: unless-stopped
+    ports:
+      # 將容器內的 5000 連接埠映射到實體機器的 5000 連接埠
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+    volumes:
+      # 資料持久化掛載：確保容器重啟時，SQLite 資料庫檔案 (tasks.db) 不會遺失
+      - task-data:/app/data
+    networks:
+      - task-network
+
+  # ----------------------------------------------------------------------------
+  # 服務 2：Vue 3 + Nginx 前端服務
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai-task-frontend
+    restart: unless-stopped
+    ports:
+      # 將 Nginx 容器的 80 連接埠映射到實體機器的 8080 連接埠
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - task-network
+
+# ------------------------------------------------------------------------------
+# 共享網路與持久化儲存空間 (Networks & Volumes)
+# ------------------------------------------------------------------------------
+networks:
+  task-network:
+    driver: bridge
+
+volumes:
+  task-data:
+    driver: local

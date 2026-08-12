@@ -9,14 +9,17 @@ public sealed class TaskService(AppDbContext db)
 {
     private static readonly TimeSpan TaipeiOffset = TimeSpan.FromHours(8);
 
-    public Task<List<TaskItem>> GetAllAsync(
+    public async Task<(List<TaskItem> Items, int TotalCount)> GetPagedAsync(
         TaskState? status,
         string? search,
         string? sortBy,
         string? sortOrder,
+        int page,
+        int pageSize,
+        int userId,
         CancellationToken cancellationToken)
     {
-        var query = db.Tasks.AsNoTracking();
+        var query = db.Tasks.AsNoTracking().Where(item => item.UserId == userId);
 
         if (status is not null)
         {
@@ -31,28 +34,30 @@ public sealed class TaskService(AppDbContext db)
                 EF.Functions.Like(item.Description, $"%{keyword}%"));
         }
 
-        var isAscending = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+        var totalCount = await query.CountAsync(cancellationToken);
 
+        var isAscending = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
         query = (sortBy?.ToLowerInvariant()) switch
         {
-            "title" => isAscending
-                ? query.OrderBy(item => item.Title)
-                : query.OrderByDescending(item => item.Title),
-            "status" => isAscending
-                ? query.OrderBy(item => item.Status)
-                : query.OrderByDescending(item => item.Status),
-            _ => isAscending
-                ? query.OrderBy(item => item.CreatedAt)
-                : query.OrderByDescending(item => item.CreatedAt),
+            "title" => isAscending ? query.OrderBy(x => x.Title) : query.OrderByDescending(x => x.Title),
+            "status" => isAscending ? query.OrderBy(x => x.Status) : query.OrderByDescending(x => x.Status),
+            _ => isAscending ? query.OrderBy(x => x.CreatedAt) : query.OrderByDescending(x => x.CreatedAt),
         };
 
-        return query.ToListAsync(cancellationToken);
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
+
 
     public async Task<TaskItem> CreateAsync(
         string title,
         string? description,
         TaskState? status,
+        int userId,
         CancellationToken cancellationToken)
     {
         var item = new TaskItem
@@ -60,7 +65,8 @@ public sealed class TaskService(AppDbContext db)
             Title = title.Trim(),
             Description = description?.Trim() ?? string.Empty,
             Status = status ?? TaskState.Todo,
-            CreatedAt = DateTime.UtcNow.Add(TaipeiOffset)
+            CreatedAt = DateTime.UtcNow.Add(TaipeiOffset),
+            UserId = userId
         };
 
         db.Tasks.Add(item);
@@ -71,10 +77,11 @@ public sealed class TaskService(AppDbContext db)
     public async Task<TaskItem?> UpdateStatusAsync(
         int id,
         TaskState status,
+        int userId,
         CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null)
+        if (item is null || item.UserId != userId)
         {
             return null;
         }
@@ -88,26 +95,30 @@ public sealed class TaskService(AppDbContext db)
         int id,
         string title,
         string? description,
-        TaskState status,
+        TaskState? status,
+        int userId,
         CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null)
+        if (item is null || item.UserId != userId)
         {
             return null;
         }
 
         item.Title = title.Trim();
         item.Description = description?.Trim() ?? string.Empty;
-        item.Status = status;
+        if (status is not null)
+        {
+            item.Status = status.Value;
+        }
         await db.SaveChangesAsync(cancellationToken);
         return item;
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(int id, int userId, CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null)
+        if (item is null || item.UserId != userId)
         {
             return false;
         }

@@ -1,10 +1,12 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AiTaskDemo.Api.Data;
 using AiTaskDemo.Api.DTOs;
 using AiTaskDemo.Api.Models;
+using AiTaskDemo.Api.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaskState = AiTaskDemo.Api.Models.TaskStatus;
@@ -20,6 +22,63 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) }
     };
 
+    private async Task<User> EnsureDefaultUserAsync()
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Username == "testuser");
+        if (user is null)
+        {
+            user = new User
+            {
+                Username = "testuser",
+                PasswordHash = "hashedpassword"
+            };
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+        }
+        return user;
+    }
+
+    private async Task SeedAsync(params TaskItem[] items)
+    {
+        var user = await EnsureDefaultUserAsync();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Tasks.RemoveRange(db.Tasks);
+        await db.SaveChangesAsync();
+        foreach (var item in items)
+        {
+            item.UserId = user.Id;
+        }
+        db.Tasks.AddRange(items);
+        await db.SaveChangesAsync();
+    }
+
+    private async Task<HttpClient> GetClientAsync(string username = "testuser")
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var tokenService = scope.ServiceProvider.GetRequiredService<JwtTokenService>();
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Username == username);
+        if (user is null)
+        {
+            user = new User
+            {
+                Username = username,
+                PasswordHash = "hashedpassword"
+            };
+            db.Users.Add(user);
+            await db.SaveChangesAsync();
+        }
+
+        var token = tokenService.GenerateToken(user);
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return client;
+    }
+
     [Fact]
     public async Task Get_returns_tasks_newest_first()
     {
@@ -27,10 +86,12 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Older", TaskState.Todo, new DateTime(2026, 8, 9, 8, 0, 0, DateTimeKind.Utc)),
             NewItem("Newer", TaskState.Done, new DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc)));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks", JsonOptions);
+        var client = await GetClientAsync();
+        var result = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks", JsonOptions);
 
-        Assert.Equal(new[] { "Newer", "Older" }, items!.Select(x => x.Title));
+        Assert.NotNull(result);
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(new[] { "Newer", "Older" }, result.Items.Select(x => x.Title));
     }
 
     [Fact]
@@ -40,10 +101,11 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Todo item", TaskState.Todo, DateTime.UtcNow),
             NewItem("Doing item", TaskState.Doing, DateTime.UtcNow));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?status=Doing", JsonOptions);
+        var client = await GetClientAsync();
+        var result = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?status=Doing", JsonOptions);
 
-        var item = Assert.Single(items!);
+        Assert.NotNull(result);
+        var item = Assert.Single(result.Items);
         Assert.Equal("Doing item", item.Title);
         Assert.Equal(TaskState.Doing, item.Status);
     }
@@ -51,7 +113,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Get_rejects_empty_status()
     {
-        var response = await factory.CreateClient().GetAsync("/api/tasks?status=");
+        var client = await GetClientAsync();
+        var response = await client.GetAsync("/api/tasks?status=");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -64,7 +127,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [InlineData("Todo,Doing")]
     public async Task Get_rejects_unknown_status(string status)
     {
-        var response = await factory.CreateClient().GetAsync($"/api/tasks?status={status}");
+        var client = await GetClientAsync();
+        var response = await client.GetAsync($"/api/tasks?status={status}");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -72,7 +136,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_creates_task_and_defaults_status_to_todo()
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = "Write tests",
             description = "Cover the API"
@@ -92,7 +157,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     {
         var beforeCreate = DateTime.UtcNow.AddHours(8);
 
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = "Use Taipei time"
         });
@@ -110,7 +176,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [InlineData("Done")]
     public async Task Post_accepts_each_explicit_valid_status(string status)
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = $"Create as {status}",
             status
@@ -126,7 +193,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [InlineData("   ")]
     public async Task Post_rejects_blank_title(string title)
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new { title });
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new { title });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -134,7 +202,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_rejects_title_over_100_characters()
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = new string('x', 101)
         });
@@ -145,7 +214,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_rejects_unknown_status()
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = "Invalid status",
             status = "Blocked"
@@ -157,7 +227,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Post_rejects_numeric_status()
     {
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = "Invalid numeric status",
             status = 99
@@ -177,7 +248,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             taskCount = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.CountAsync();
         }
 
-        var response = await factory.CreateClient().PostAsJsonAsync("/api/tasks", new
+        var client = await GetClientAsync();
+        var response = await client.PostAsJsonAsync("/api/tasks", new
         {
             title = "Invalid combined status",
             status
@@ -205,7 +277,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         {
             Content = JsonContent.Create(new { status = targetStatus })
         };
-        var response = await factory.CreateClient().SendAsync(request);
+        var client = await GetClientAsync();
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
@@ -226,7 +299,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             Content = JsonContent.Create(new { status = "Doing" })
         };
 
-        var response = await factory.CreateClient().SendAsync(request);
+        var client = await GetClientAsync();
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -241,7 +315,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             Content = JsonContent.Create(new { status })
         };
 
-        var response = await factory.CreateClient().SendAsync(request);
+        var client = await GetClientAsync();
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -254,7 +329,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             Content = JsonContent.Create(new { status = 99 })
         };
 
-        var response = await factory.CreateClient().SendAsync(request);
+        var client = await GetClientAsync();
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -275,7 +351,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         {
             Content = JsonContent.Create(new { status })
         };
-        var response = await factory.CreateClient().SendAsync(request);
+        var client = await GetClientAsync();
+        var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var verifyScope = factory.Services.CreateScope();
@@ -294,7 +371,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
         }
 
-        var response = await factory.CreateClient().PutAsJsonAsync($"/api/tasks/{id}", new
+        var client = await GetClientAsync();
+        var response = await client.PutAsJsonAsync($"/api/tasks/{id}", new
         {
             title = "Updated Title",
             description = "Updated Description",
@@ -318,7 +396,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Put_returns_not_found_for_unknown_id()
     {
-        var response = await factory.CreateClient().PutAsJsonAsync("/api/tasks/99999", new
+        var client = await GetClientAsync();
+        var response = await client.PutAsJsonAsync("/api/tasks/99999", new
         {
             title = "Valid Title",
             description = "Valid Description",
@@ -333,7 +412,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [InlineData("   ")]
     public async Task Put_rejects_blank_title(string title)
     {
-        var response = await factory.CreateClient().PutAsJsonAsync("/api/tasks/1", new
+        var client = await GetClientAsync();
+        var response = await client.PutAsJsonAsync("/api/tasks/1", new
         {
             title,
             description = "Some description",
@@ -353,7 +433,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
         }
 
-        var response = await factory.CreateClient().DeleteAsync($"/api/tasks/{id}");
+        var client = await GetClientAsync();
+        var response = await client.DeleteAsync($"/api/tasks/{id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
@@ -366,7 +447,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Delete_returns_not_found_for_unknown_id()
     {
-        var response = await factory.CreateClient().DeleteAsync("/api/tasks/99999");
+        var client = await GetClientAsync();
+        var response = await client.DeleteAsync("/api/tasks/99999");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
@@ -374,7 +456,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     [Fact]
     public async Task Hub_endpoint_is_accessible()
     {
-        var response = await factory.CreateClient().PostAsync("/hubs/tasks/negotiate?negotiateVersion=1", null);
+        var client = await GetClientAsync();
+        var response = await client.PostAsync("/hubs/tasks/negotiate?negotiateVersion=1", null);
         Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.BadRequest);
     }
 
@@ -386,12 +469,13 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Backend API", "Add SignalR Hub", TaskState.Doing, DateTime.UtcNow),
             NewItem("Write documentation", "Summarize frontend features", TaskState.Done, DateTime.UtcNow));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?search=frontend", JsonOptions);
+        var client = await GetClientAsync();
+        var result = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?search=frontend", JsonOptions);
 
-        Assert.Equal(2, items!.Count);
-        Assert.Contains(items, x => x.Title == "Frontend design");
-        Assert.Contains(items, x => x.Title == "Write documentation");
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Contains(result.Items, x => x.Title == "Frontend design");
+        Assert.Contains(result.Items, x => x.Title == "Write documentation");
     }
 
     [Fact]
@@ -402,20 +486,151 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Alice", TaskState.Todo, DateTime.UtcNow),
             NewItem("Bob", TaskState.Todo, DateTime.UtcNow));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?sortBy=title&sortOrder=asc", JsonOptions);
+        var client = await GetClientAsync();
+        var result = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?sortBy=title&sortOrder=asc", JsonOptions);
 
-        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, items!.Select(x => x.Title));
+        Assert.NotNull(result);
+        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, result.Items.Select(x => x.Title));
     }
 
-    private async Task SeedAsync(params TaskItem[] items)
+    [Fact]
+    public async Task Get_supports_pagination_with_page_and_pageSize()
     {
-        using var scope = factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.Tasks.RemoveRange(db.Tasks);
-        await db.SaveChangesAsync();
-        db.Tasks.AddRange(items);
-        await db.SaveChangesAsync();
+        await SeedAsync(
+            NewItem("Task 1", TaskState.Todo, new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 2", TaskState.Todo, new DateTime(2026, 8, 2, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 3", TaskState.Todo, new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 4", TaskState.Todo, new DateTime(2026, 8, 4, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 5", TaskState.Todo, new DateTime(2026, 8, 5, 0, 0, 0, DateTimeKind.Utc)));
+
+        var client = await GetClientAsync();
+
+        var page1 = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?page=1&pageSize=2", JsonOptions);
+        Assert.NotNull(page1);
+        Assert.Equal(5, page1.TotalCount);
+        Assert.Equal(3, page1.TotalPages);
+        Assert.Equal(1, page1.Page);
+        Assert.Equal(2, page1.PageSize);
+        Assert.Equal(new[] { "Task 5", "Task 4" }, page1.Items.Select(x => x.Title));
+
+        var page2 = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?page=2&pageSize=2", JsonOptions);
+        Assert.NotNull(page2);
+        Assert.Equal(5, page2.TotalCount);
+        Assert.Equal(3, page2.TotalPages);
+        Assert.Equal(2, page2.Page);
+        Assert.Equal(2, page2.PageSize);
+        Assert.Equal(new[] { "Task 3", "Task 2" }, page2.Items.Select(x => x.Title));
+
+        var page3 = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?page=3&pageSize=2", JsonOptions);
+        Assert.NotNull(page3);
+        Assert.Equal(5, page3.TotalCount);
+        Assert.Equal(3, page3.TotalPages);
+        Assert.Equal(3, page3.Page);
+        Assert.Equal(2, page3.PageSize);
+        Assert.Equal(new[] { "Task 1" }, page3.Items.Select(x => x.Title));
+    }
+
+    [Theory]
+    [InlineData("page=0")]
+    [InlineData("page=-1")]
+    [InlineData("pageSize=0")]
+    [InlineData("pageSize=-1")]
+    [InlineData("pageSize=101")]
+    public async Task Get_rejects_invalid_pagination_parameters(string query)
+    {
+        var client = await GetClientAsync();
+        var response = await client.GetAsync($"/api/tasks?{query}");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task MultiUser_UserA_creates_task_UserA_can_see_it()
+    {
+        var clientA = await GetClientAsync("UserA");
+        var createResponse = await clientA.PostAsJsonAsync("/api/tasks", new
+        {
+            title = "User A task",
+            description = "Owned by A"
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createdTask = await createResponse.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.NotNull(createdTask);
+
+        var listResponse = await clientA.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks", JsonOptions);
+        Assert.NotNull(listResponse);
+        Assert.Contains(listResponse.Items, x => x.Id == createdTask.Id);
+    }
+
+    [Fact]
+    public async Task MultiUser_UserB_cannot_see_UserA_tasks()
+    {
+        var clientA = await GetClientAsync("UserA");
+        var clientB = await GetClientAsync("UserB");
+
+        var createResponse = await clientA.PostAsJsonAsync("/api/tasks", new
+        {
+            title = "User A task",
+            description = "Owned by A"
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createdTask = await createResponse.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.NotNull(createdTask);
+
+        var listResponse = await clientB.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks", JsonOptions);
+        Assert.NotNull(listResponse);
+        Assert.DoesNotContain(listResponse.Items, x => x.Id == createdTask.Id);
+    }
+
+    [Fact]
+    public async Task MultiUser_UserB_cannot_update_UserA_tasks()
+    {
+        var clientA = await GetClientAsync("UserA");
+        var clientB = await GetClientAsync("UserB");
+
+        var createResponse = await clientA.PostAsJsonAsync("/api/tasks", new
+        {
+            title = "User A task",
+            description = "Owned by A"
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createdTask = await createResponse.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.NotNull(createdTask);
+
+        // Put update
+        var putResponse = await clientB.PutAsJsonAsync($"/api/tasks/{createdTask.Id}", new
+        {
+            title = "Hacked Title",
+            description = "Hacked Description",
+            status = "Doing"
+        });
+        Assert.Equal(HttpStatusCode.NotFound, putResponse.StatusCode);
+
+        // Patch status update
+        var request = new HttpRequestMessage(HttpMethod.Patch, $"/api/tasks/{createdTask.Id}/status")
+        {
+            Content = JsonContent.Create(new { status = "Doing" })
+        };
+        var patchResponse = await clientB.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NotFound, patchResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task MultiUser_UserB_cannot_delete_UserA_tasks()
+    {
+        var clientA = await GetClientAsync("UserA");
+        var clientB = await GetClientAsync("UserB");
+
+        var createResponse = await clientA.PostAsJsonAsync("/api/tasks", new
+        {
+            title = "User A task",
+            description = "Owned by A"
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createdTask = await createResponse.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.NotNull(createdTask);
+
+        var deleteResponse = await clientB.DeleteAsync($"/api/tasks/{createdTask.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, deleteResponse.StatusCode);
     }
 
     private static TaskItem NewItem(string title, string description, TaskState status, DateTime createdAt) =>
