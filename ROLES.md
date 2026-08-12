@@ -68,6 +68,8 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 
 - 設計 RESTful API。
 - 實作 ASP.NET Core Controller、Service、DTO、Model。
+- 實作 `PUT /api/tasks/{id}` 編輯任務端點與 `TaskService` EF Core 查詢擴充（支援 `search` 模糊比對、`sortBy` / `sortOrder` 動態排序）。
+- 實作 `GlobalExceptionMiddleware` 處理全域例外與 RFC 7807 `ProblemDetails` 回應格式。
 - 實作 SignalR `TaskHub` (`/hubs/tasks`) 並於任務 CRUD 異動時廣播 `TaskCreated`、`TaskUpdated`、`TaskDeleted` 事件。
 - 使用 Entity Framework Core 與 SQLite 儲存資料。
 - 確認前端 TypeScript 型別與後端 JSON Contract 一致。
@@ -87,15 +89,19 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 1. API 符合 RESTful Design 且 Hub 事件正確廣播
 2. 前後端型別與事件名稱一致
 3. 驗證錯誤回傳 400
-4. 程式碼可建置並可測試
+4. 未捕捉例外傳回 RFC 7807 格式 500 回應
+5. 程式碼可建置並可測試
 ```
 
 ### 本專案中的全端工程師產出
 
-- 建立 `/api/tasks` 查詢與新增 API。
+- 建立 `/api/tasks` 查詢、狀態篩選、`search` 模糊搜尋與 `sortBy`/`sortOrder` 動態排序 API。
+- 建立 `/api/tasks` 新增 API。
+- 建立 `/api/tasks/{id}` (PUT) 編輯任務 API（更新標題、描述與狀態）。
 - 建立 `/api/tasks/{id}/status` 狀態修改 API。
 - 建立 `/api/tasks/{id}` 刪除任務 API。
-- 建立 `TaskHub` (`/hubs/tasks`) 並於 Controller 新增、修改狀態、刪除異動時廣播 SignalR 事件。
+- 建立 `GlobalExceptionMiddleware` 統一傳回 RFC 7807 `application/problem+json` 格式錯誤回應。
+- 建立 `TaskHub` (`/hubs/tasks`) 並於 Controller 新增、編輯/修改狀態、刪除異動時廣播 SignalR 事件。
 - 建立 SQLite 資料儲存與 EF Core DbContext。
 - 確認前端 `taskApi.ts` 與後端 API 路徑一致。
 - 驗證 API 回傳格式符合前端 `Task` 型別。
@@ -157,6 +163,8 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 - 驗證正常流程。
 - 驗證錯誤流程與邊界條件。
 - 驗證多視窗/多裝置即時同步與連線生命週期。
+- 驗證 `PUT` 編輯、`search` 模糊搜尋與 `sortBy` / `sortOrder` 動態排序功能。
+- 驗證全域例外處理 RFC 7807 錯誤格式。
 - 檢查 API 回應狀態碼與 SignalR 廣播事件。
 - 檢查前端畫面是否正確呈現成功與錯誤狀態。
 - 回報缺陷並提供可重現步驟。
@@ -177,6 +185,10 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 7. title 超過 100 字回傳 400
 8. status 不是 Todo / Doing / Done 時回傳錯誤
 9. 開啟多個視窗操作，新增/修改/刪除任務時其他視窗無需重新整理即時同步
+10. 可以透過 PUT /api/tasks/{id} 編輯 Task 標題、描述與狀態
+11. 可以透過 search 參數對標題與描述進行關鍵字模糊搜尋
+12. 可以透過 sortBy 與 sortOrder 進行動態排序
+13. 伺服器端發生未預期例外時，統一回傳 RFC 7807 ProblemDetails 格式
 
 請輸出測試清單、預期結果與實際結果。
 ```
@@ -190,6 +202,10 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 | 修改狀態為 `Doing` | 任務狀態成功更新 |
 | 篩選 `Todo` | 只顯示 `Todo` 任務 |
 | 刪除 Task | `DELETE /api/tasks/{id}` 回傳 204，任務從列表移除；若不存在回傳 404 |
+| PUT 編輯 Task | `PUT /api/tasks/{id}` 更新成功回傳 200 與更新後 Task，並廣播 `TaskUpdated`；不存在回傳 404 |
+| 關鍵字模糊搜尋 (search) | `GET /api/tasks?search=kw` 僅傳回標題或描述包含 `kw` 之任務 |
+| 動態排序 (sortBy, sortOrder) | `GET /api/tasks?sortBy=title&sortOrder=asc` 依指定欄位與方向正確排序 |
+| 全域例外處理 (RFC 7807) | 伺服器發生未預期例外時傳回 500，Content-Type 為 `application/problem+json` 且符合 RFC 7807 結構 |
 | 空白 title | 前端阻擋或後端回傳 `400 Bad Request` |
 | title 超過 100 字 | 後端回傳 `400 Bad Request` |
 | status 傳入非法值 | 後端回傳 `400 Bad Request` |
