@@ -1,0 +1,138 @@
+# ==============================================================================
+# GitHub Actions CI/CD 自動化測試與 GitHub Pages 部署管線
+# ==============================================================================
+# 檔案路徑：.github/workflows/ci.yml
+# 目的：
+#   1. CI 階段：每次 Push 或 PR 時，自動執行前後端測試與 E2E 瀏覽器測試
+#   2. CD 階段：當測試全部通過時，自動將前端打包並發布至 GitHub Pages 免費網站！
+# ==============================================================================
+
+name: CI/CD Pipeline
+
+# 觸發時機
+on:
+  push:
+    branches:
+      - main
+      - interview-clean-history
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - interview-clean-history
+
+# 避免重複執行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 給予 GitHub Actions 部署至 GitHub Pages 所需的權限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # ============================================================================
+  # 任務 1：後端自動化測試與建置 (Backend CI)
+  # ============================================================================
+  backend-ci:
+    name: 🛡️ 後端測試與建置 (.NET 10 / xUnit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 下載原始碼 (Checkout Code)
+        uses: actions/checkout@v4
+
+      - name: ⚙️ 設定 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 📦 還原後端套件 (dotnet restore)
+        run: dotnet restore backend/AiTaskDemo.Api.csproj
+
+      - name: 🔨 建置後端專案 (dotnet build)
+        run: dotnet build backend/AiTaskDemo.Api.csproj --configuration Release --no-restore
+
+      - name: 🧪 執行後端 40 個整合測試 (dotnet test)
+        run: dotnet test backend.tests/AiTaskDemo.Api.Tests.csproj --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+
+  # ============================================================================
+  # 任務 2：前端自動化測試、型別檢查與 E2E 測試 (Frontend CI)
+  # ============================================================================
+  frontend-ci:
+    name: 🌐 前端測試、打包與 E2E (Vue 3 / Vitest / Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 下載原始碼
+        uses: actions/checkout@v4
+
+      - name: ⚙️ 設定 Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 📦 安裝前端套件 (npm ci)
+        working-directory: frontend
+        run: npm ci
+
+      - name: 🧪 執行前端 37 個單元與元件測試 (Vitest)
+        working-directory: frontend
+        run: npm test
+
+      - name: 🛡️ TypeScript 型別檢查與 Vite 打包 (npm run build)
+        working-directory: frontend
+        run: npm run build
+
+      - name: 🌐 安裝 Playwright 瀏覽器環境
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: 🚀 執行 E2E 瀏覽器端到端測試 (Playwright)
+        working-directory: frontend
+        run: npm run test:e2e
+
+  # ============================================================================
+  # 任務 3：持續部署 (CD) —— 自動發布至 GitHub Pages
+  # ============================================================================
+  deploy-pages:
+    name: 🚀 自動部署至 GitHub Pages (Deploy)
+    # 依賴前兩個測試任務：只有在後端與前端測試 100% 通過時才允許部署
+    needs: [backend-ci, frontend-ci]
+    # 當推送到 main 或 feature 分支時執行部署
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/devops-ci-e2e'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: 📥 下載原始碼
+        uses: actions/checkout@v4
+
+      - name: ⚙️ 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 📦 安裝套件並打包生產環境產物 (Vite Build)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: 🌐 設定 GitHub Pages 產物
+        uses: actions/configure-pages@v5
+
+      - name: 📤 上傳前端靜態網頁產物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+      - name: 🚀 執行部署至 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

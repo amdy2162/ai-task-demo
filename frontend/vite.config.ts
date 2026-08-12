@@ -3,7 +3,11 @@ import vue from '@vitejs/plugin-vue'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.GITHUB_ACTIONS ? '/ai-task-demo/' : '/',
   plugins: [vue()],
   server: { port: 5173, strictPort: true },
-  test: { environment: 'jsdom' },
+  test: {
+    environment: 'jsdom',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
+  },
 })

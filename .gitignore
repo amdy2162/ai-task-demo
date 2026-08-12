@@ -12,6 +12,9 @@
 *.env
 *.db-wal
 *.db-shm
+playwright-report/
+test-results/
+
 
 
 # User-specific files (MonoDevelop/Xamarin Studio)
