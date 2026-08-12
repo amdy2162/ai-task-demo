@@ -1,0 +1,107 @@
+# ==============================================================================
+# GitHub Actions CI 自動化測試與品質守門員管線 (Continuous Integration Pipeline)
+# ==============================================================================
+# 檔案路徑：.github/workflows/ci.yml
+# 目的：每次有人 Push 程式碼或發起 Pull Request 時，自動在雲端執行後端與前端的完整測試，
+#       確保任何程式碼變更都不會改壞既有功能，未通過測試的 PR 將被自動阻擋合併！
+# ==============================================================================
+
+# 管線名稱（會顯示在 GitHub 網頁的 Actions 頁籤中）
+name: CI Pipeline
+
+# 觸發時機 (Triggers)
+on:
+  # 當有程式碼推送到主要分支或功能分支時觸發
+  push:
+    branches:
+      - main
+      - interview-clean-history
+      - 'feature/**'
+
+  # 當有 Pull Request 想要合併到主要分支時觸發
+  pull_request:
+    branches:
+      - main
+      - interview-clean-history
+
+# 避免重複執行（如果有新的 commit 推上來，自動取消前一次還沒跑完的 CI，節省資源）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================================
+  # 工作 1：後端自動化測試與建置 (Backend Build & Test Job)
+  # ============================================================================
+  backend-ci:
+    name: 🛡️ 後端測試與建置 (.NET 10 / xUnit)
+    # 使用 GitHub 提供的最新版 Ubuntu 雲端虛擬機
+    runs-on: ubuntu-latest
+
+    steps:
+      # 步驟 1：下載專案的 Git 原始碼到虛擬機中
+      - name: 📥 下載原始碼 (Checkout Code)
+        uses: actions/checkout@v4
+
+      # 步驟 2：在虛擬機中安裝 .NET 10 SDK 開發環境
+      - name: ⚙️ 設定 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # 步驟 3：還原後端 NuGet 套件依賴
+      - name: 📦 還原後端套件 (dotnet restore)
+        run: dotnet restore backend/AiTaskDemo.Api.csproj
+
+      # 步驟 4：編譯後端 API 專案，確保沒有任何語法或型別錯誤
+      - name: 🔨 建置後端專案 (dotnet build)
+        run: dotnet build backend/AiTaskDemo.Api.csproj --configuration Release --no-restore
+
+      # 步驟 5：執行後端全部 xUnit 整合測試，並自動生成程式碼覆蓋率報告 (Coverage)
+      - name: 🧪 執行後端整合測試 (dotnet test)
+        run: dotnet test backend.tests/AiTaskDemo.Api.Tests.csproj --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+
+  # ============================================================================
+  # 工作 2：前端自動化測試、型別檢查與 E2E 測試 (Frontend Test & E2E Job)
+  # ============================================================================
+  frontend-ci:
+    name: 🌐 前端測試、打包與 E2E (Vue 3 / Vitest / Playwright)
+    runs-on: ubuntu-latest
+
+    steps:
+      # 步驟 1：下載專案原始碼
+      - name: 📥 下載原始碼 (Checkout Code)
+        uses: actions/checkout@v4
+
+      # 步驟 2：在虛擬機中安裝 Node.js 22 LTS 環境，並啟用 npm 快取加速安裝
+      - name: ⚙️ 設定 Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # 步驟 3：安裝前端 npm 套件（使用 npm ci 確保依賴版本與 package-lock.json 100% 一致）
+      - name: 📦 安裝前端套件 (npm ci)
+        working-directory: frontend
+        run: npm ci
+
+      # 步驟 4：執行 Vitest 單元測試與元件測試
+      - name: 🧪 執行前端單元與 Store 測試 (Vitest)
+        working-directory: frontend
+        run: npm test
+
+      # 步驟 5：執行 TypeScript 型別檢查 (vue-tsc) 與 Vite 生產環境打包
+      - name: 🛡️ TypeScript 型別檢查與 Vite 打包 (npm run build)
+        working-directory: frontend
+        run: npm run build
+
+      # 步驟 6：在虛擬機中安裝 Playwright 瀏覽器核心 (Chromium)
+      - name: 🌐 安裝 Playwright 瀏覽器環境
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      # 步驟 7：執行 Playwright E2E 瀏覽器端到端測試，模擬真實使用者點擊與流程
+      - name: 🚀 執行 E2E 瀏覽器端到端測試 (Playwright)
+        working-directory: frontend
+        run: npm run test:e2e
