@@ -46,7 +46,15 @@ test.describe('Task Management 任務管理系統 E2E 完整流程測試', () =>
           ? currentTasks.filter(t => t.status === status)
           : currentTasks
 
-        await route.fulfill({ json: filtered })
+        await route.fulfill({
+          json: {
+            items: filtered,
+            totalCount: filtered.length,
+            page: 1,
+            pageSize: 20,
+            totalPages: Math.ceil(filtered.length / 20) || 1,
+          },
+        })
       } else if (method === 'POST') {
         // 處理新增任務請求
         const data = JSON.parse(request.postData() || '{}')

@@ -8,14 +8,16 @@ afterEach(() => mock.reset())
 
 describe('taskApi', () => {
   it('requests all tasks without a status parameter', async () => {
-    mock.onGet('/tasks').reply(200, [])
-    await expect(getTasks()).resolves.toEqual([])
+    const emptyPaged = { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }
+    mock.onGet('/tasks').reply(200, emptyPaged)
+    await expect(getTasks()).resolves.toEqual(emptyPaged)
     expect(mock.history.get[0].params).toBeUndefined()
   })
 
-  it('requests tasks with an optional status filter', async () => {
-    mock.onGet('/tasks', { params: { status: 'Doing' } }).reply(200, [])
-    await expect(getTasks('Doing')).resolves.toEqual([])
+  it('requests tasks with an optional status filter and pagination params', async () => {
+    const pagedResult = { items: [], totalCount: 0, page: 1, pageSize: 20, totalPages: 0 }
+    mock.onGet('/tasks', { params: { status: 'Doing', page: 1, pageSize: 20 } }).reply(200, pagedResult)
+    await expect(getTasks({ status: 'Doing', page: 1, pageSize: 20 })).resolves.toEqual(pagedResult)
   })
 
   it('posts the create payload', async () => {

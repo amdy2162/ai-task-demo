@@ -252,7 +252,7 @@ git commit -m "feat(backend): add database pagination with PagedResult DTO, vali
 - Modify: `SPEC.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: Update frontend types & taskApi to support PagedResult**
+- [x] **Step 1: Update frontend types & taskApi to support PagedResult**
 
 In `frontend/src/types/task.ts`:
 ```typescript
@@ -280,15 +280,15 @@ export async function getTasks(params?: {
 }
 ```
 
-- [ ] **Step 2: Update taskStore.ts to unwrap items and store pagination state**
+- [x] **Step 2: Update taskStore.ts to unwrap items and store pagination state**
 
 Update `taskStore.ts` to store `totalCount`, `page`, `pageSize`, `totalPages` and update `fetchTasks`.
 
-- [ ] **Step 3: Update frontend unit tests & E2E mocks**
+- [x] **Step 3: Update frontend unit tests & E2E mocks**
 
 Update `frontend/tests/*` and `frontend/e2e/tasks.spec.ts` to mock `PagedResult` format.
 
-- [ ] **Step 4: Run all frontend and backend tests to verify 100% green**
+- [x] **Step 4: Run all frontend and backend tests to verify 100% green**
 
 Run:
 ```powershell
@@ -296,7 +296,7 @@ dotnet test backend.tests/AiTaskDemo.Api.Tests.csproj
 cd frontend && npm test && npm run test:e2e && npm run build
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/ SPEC.md README.md docs/superpowers/plans/2026-08-12-ef-core-migrations-and-pagination.md

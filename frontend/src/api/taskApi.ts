@@ -1,13 +1,20 @@
 import axios from 'axios'
-import type { CreateTaskRequest, TaskItem, TaskStatus } from '../types/task'
+import type { CreateTaskRequest, PagedResult, TaskItem, TaskStatus } from '../types/task'
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api',
 })
 
-export async function getTasks(status?: TaskStatus): Promise<TaskItem[]> {
-  const response = await apiClient.get<TaskItem[]>('/tasks', {
-    params: status ? { status } : undefined,
+export async function getTasks(params?: {
+  status?: TaskStatus
+  search?: string
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+  page?: number
+  pageSize?: number
+}): Promise<PagedResult<TaskItem>> {
+  const response = await apiClient.get<PagedResult<TaskItem>>('/tasks', {
+    params,
   })
   return response.data
 }

@@ -14,6 +14,10 @@ export const useTaskStore = defineStore('tasks', () => {
   const isLoading = ref(false)
   const error = ref('')
   const isRealtimeConnected = ref(false)
+  const totalCount = ref(0)
+  const page = ref(1)
+  const pageSize = ref(20)
+  const totalPages = ref(1)
   let latestFetch = 0
 
   function setViewMode(mode: ViewMode): void {
@@ -25,9 +29,22 @@ export const useTaskStore = defineStore('tasks', () => {
     isLoading.value = true
     error.value = ''
     try {
-      const items = await getTasks(selectedStatus.value === 'All' ? undefined : selectedStatus.value)
+      const data = await getTasks({
+        status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
+        page: page.value,
+        pageSize: pageSize.value,
+      })
       if (fetchId === latestFetch) {
-        tasks.value = items
+        if (data && Array.isArray(data.items)) {
+          tasks.value = data.items
+          totalCount.value = data.totalCount ?? data.items.length
+          page.value = data.page ?? 1
+          pageSize.value = data.pageSize ?? 20
+          totalPages.value = data.totalPages ?? 1
+        } else if (Array.isArray(data)) {
+          tasks.value = data
+          totalCount.value = data.length
+        }
       }
     } catch {
       if (fetchId === latestFetch) {
@@ -90,5 +107,24 @@ export const useTaskStore = defineStore('tasks', () => {
     isRealtimeConnected.value = false
   }
 
-  return { tasks, selectedStatus, viewMode, isLoading, error, isRealtimeConnected, fetchTasks, setStatusFilter, setViewMode, addTask, changeStatus, removeTask, startRealtime, stopRealtime }
+  return {
+    tasks,
+    selectedStatus,
+    viewMode,
+    isLoading,
+    error,
+    isRealtimeConnected,
+    totalCount,
+    page,
+    pageSize,
+    totalPages,
+    fetchTasks,
+    setStatusFilter,
+    setViewMode,
+    addTask,
+    changeStatus,
+    removeTask,
+    startRealtime,
+    stopRealtime,
+  }
 })

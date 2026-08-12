@@ -61,7 +61,7 @@
 
 | Method / Protocol | Endpoint | 說明 |
 | --- | --- | --- |
-| GET | `/api/tasks` | 查詢所有任務（支援 `status` 篩選、`search` 模糊搜尋、`sortBy` 排序 `title`\|`status`\|`createdAt`、`sortOrder` `asc`\|`desc`） |
+| GET | `/api/tasks` | 查詢任務列表（支援 `status` 篩選、`search` 模糊搜尋、`sortBy` 排序 `title`\|`status`\|`createdAt`、`sortOrder` `asc`\|`desc`，以及 `page`、`pageSize` 分頁查詢，回傳 `PagedResult` 包含 `totalCount` 與 `totalPages`） |
 | POST | `/api/tasks` | 新增任務 |
 | PUT | `/api/tasks/{id}` | 編輯任務（更新標題、描述與狀態，成功後廣播 `TaskUpdated`） |
 | PATCH | `/api/tasks/{id}/status` | 修改任務狀態 |
@@ -160,15 +160,32 @@ npm run build
    - 安裝 Playwright 瀏覽器並執行 E2E 瀏覽器端到端測試
 3. **品質閘門**：任何測試未通過將自動阻擋合併（Block PR merge）。
 
-## SQLite 資料庫
-
+## SQLite 資料庫與 EF Core Migrations
+ 
 SQLite 資料庫會建立在：
 
 ```text
 backend/tasks.db
 ```
 
-後端啟動時會自動建立資料庫檔案。只有在想清空本機測試資料時，才需要手動刪除這個檔案。
+後端啟動時會自動透過 `db.Database.Migrate()` 執行最新遷移並建立資料庫檔案。
+
+### EF Core 資料庫遷移常用指令
+
+專案採用 EF Core Migrations 進行資料庫架構版本控制：
+
+- **新增遷移 (Add Migration)**：
+  ```powershell
+  dotnet ef migrations add <MigrationName> --project backend/AiTaskDemo.Api.csproj --output-dir Migrations
+  ```
+- **套用遷移至資料庫 (Update Database)**：
+  ```powershell
+  dotnet ef database update --project backend/AiTaskDemo.Api.csproj
+  ```
+- **移除上一筆遷移 (Remove Migration)**：
+  ```powershell
+  dotnet ef migrations remove --project backend/AiTaskDemo.Api.csproj
+  ```
 
 ## 專案結構
 
