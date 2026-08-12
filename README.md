@@ -28,6 +28,7 @@
 - 新增任務
 - 修改任務狀態
 - 依狀態篩選任務
+- 刪除任務
 
 ## Task 欄位
 
@@ -61,6 +62,7 @@
 | GET | `/api/tasks?status=Todo` | 依狀態篩選任務 |
 | POST | `/api/tasks` | 新增任務 |
 | PATCH | `/api/tasks/{id}/status` | 修改任務狀態 |
+| DELETE | `/api/tasks/{id}` | 刪除任務 |
 
 ## 啟動後端
 
@@ -166,6 +168,7 @@ ai-task-demo/
 5. 使用狀態篩選
 6. 修改任務狀態
 7. 測試空白 title 與超過 100 字 title
+8. 刪除任務並確認清單即時更新
 
 ## 文件說明
 
