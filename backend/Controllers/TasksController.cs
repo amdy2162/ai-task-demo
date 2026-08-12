@@ -15,6 +15,9 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TaskResponse>>> GetAll(
         [FromQuery] TaskState? status,
+        [FromQuery] string? search,
+        [FromQuery] string? sortBy,
+        [FromQuery] string? sortOrder,
         CancellationToken cancellationToken)
     {
         if (Request.Query.TryGetValue("status", out var rawStatus) &&
@@ -30,7 +33,7 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
             return ValidationProblem(ModelState);
         }
 
-        var items = await service.GetAllAsync(status, cancellationToken);
+        var items = await service.GetAllAsync(status, search, sortBy, sortOrder, cancellationToken);
         return Ok(items.Select(ToResponse));
     }
 

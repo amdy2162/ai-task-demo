@@ -378,6 +378,36 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task Get_searches_by_keyword_in_title_and_description()
+    {
+        await SeedAsync(
+            NewItem("Frontend design", "Fix button style", TaskState.Todo, DateTime.UtcNow),
+            NewItem("Backend API", "Add SignalR Hub", TaskState.Doing, DateTime.UtcNow),
+            NewItem("Write documentation", "Summarize frontend features", TaskState.Done, DateTime.UtcNow));
+
+        var items = await factory.CreateClient()
+            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?search=frontend", JsonOptions);
+
+        Assert.Equal(2, items!.Count);
+        Assert.Contains(items, x => x.Title == "Frontend design");
+        Assert.Contains(items, x => x.Title == "Write documentation");
+    }
+
+    [Fact]
+    public async Task Get_sorts_by_title_ascending()
+    {
+        await SeedAsync(
+            NewItem("Charlie", TaskState.Todo, DateTime.UtcNow),
+            NewItem("Alice", TaskState.Todo, DateTime.UtcNow),
+            NewItem("Bob", TaskState.Todo, DateTime.UtcNow));
+
+        var items = await factory.CreateClient()
+            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?sortBy=title&sortOrder=asc", JsonOptions);
+
+        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, items!.Select(x => x.Title));
+    }
+
     private async Task SeedAsync(params TaskItem[] items)
     {
         using var scope = factory.Services.CreateScope();
@@ -388,6 +418,9 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         await db.SaveChangesAsync();
     }
 
+    private static TaskItem NewItem(string title, string description, TaskState status, DateTime createdAt) =>
+        new() { Title = title, Description = description, Status = status, CreatedAt = createdAt };
+
     private static TaskItem NewItem(string title, TaskState status, DateTime createdAt) =>
-        new() { Title = title, Description = string.Empty, Status = status, CreatedAt = createdAt };
+        NewItem(title, string.Empty, status, createdAt);
 }
