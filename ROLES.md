@@ -68,6 +68,7 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 
 - 設計 RESTful API。
 - 實作 ASP.NET Core Controller、Service、DTO、Model。
+- 實作 SignalR `TaskHub` (`/hubs/tasks`) 並於任務 CRUD 異動時廣播 `TaskCreated`、`TaskUpdated`、`TaskDeleted` 事件。
 - 使用 Entity Framework Core 與 SQLite 儲存資料。
 - 確認前端 TypeScript 型別與後端 JSON Contract 一致。
 - 處理 CORS、錯誤回應與資料驗證。
@@ -79,12 +80,12 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 你是此專案的全端工程師。
 請根據 SPEC.md 實作前後端整合。
 
-後端使用 ASP.NET Core Web API、Entity Framework Core、SQLite。
+後端使用 ASP.NET Core Web API、SignalR Hub、Entity Framework Core、SQLite。
 前端使用 Vue 3、TypeScript、Pinia、Vite。
 
 請確保：
-1. API 符合 RESTful Design
-2. 前後端型別一致
+1. API 符合 RESTful Design 且 Hub 事件正確廣播
+2. 前後端型別與事件名稱一致
 3. 驗證錯誤回傳 400
 4. 程式碼可建置並可測試
 ```
@@ -94,6 +95,7 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 - 建立 `/api/tasks` 查詢與新增 API。
 - 建立 `/api/tasks/{id}/status` 狀態修改 API。
 - 建立 `/api/tasks/{id}` 刪除任務 API。
+- 建立 `TaskHub` (`/hubs/tasks`) 並於 Controller 新增、修改狀態、刪除異動時廣播 SignalR 事件。
 - 建立 SQLite 資料儲存與 EF Core DbContext。
 - 確認前端 `taskApi.ts` 與後端 API 路徑一致。
 - 驗證 API 回傳格式符合前端 `Task` 型別。
@@ -109,10 +111,11 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 - 建立 Vue 3 使用者介面。
 - 使用 TypeScript 定義 Task 型別。
 - 使用 Pinia 管理任務列表、載入狀態、錯誤狀態與篩選條件。
-- 串接後端 API。
+- 串接後端 API 與 `@microsoft/signalr` 即時連線服務。
+- 管理即時連線生命週期（`startRealtime` / `stopRealtime`）與連線狀態指示燈。
 - 實作 title 驗證與錯誤提示。
 - 實作刪除任務按鈕與狀態更新。
-- 撰寫前端元件測試與 Store 測試。
+- 撰寫前端元件測試、Store 測試與 SignalR 服務測試。
 
 ### Prompt 設定範例
 
@@ -121,12 +124,13 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 請根據 SPEC.md 與後端 API Contract 實作 Vue 3 前端。
 
 請完成：
-1. 任務列表
+1. 任務列表與看板檢視
 2. 新增任務表單
 3. 狀態篩選
 4. 任務狀態修改
 5. 刪除任務按鈕與操作
 6. title 必填與 100 字限制提示
+7. `@microsoft/signalr` 即時連線與 Pinia 即時同步監聽
 
 請使用 TypeScript、Pinia 與 Vite。
 修改後請補上必要測試。
@@ -136,9 +140,10 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 
 - 建立 `src/types/task.ts` 定義任務型別。
 - 建立 `src/api/taskApi.ts` 封裝 API 呼叫（包含刪除任務 API）。
-- 建立 `src/stores/taskStore.ts` 管理任務狀態（包含刪除任務 Action）。
-- 建立 `src/App.vue` 提供新增、查詢、篩選、修改狀態與刪除任務功能。
-- 加入前端測試驗證主要操作流程。
+- 建立 `src/services/signalrService.ts` 封裝 SignalR 連線與事件訂閱。
+- 建立 `src/stores/taskStore.ts` 管理任務狀態與 SignalR 即時同步事件監聽。
+- 建立 `src/App.vue` 提供新增、查詢、篩選、修改狀態、刪除任務與即時連線狀態燈號（Live Sync）。
+- 加入前端測試驗證主要操作流程與即時連線服務。
 
 ## QA 角色設定
 
@@ -151,7 +156,8 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 - 根據 Acceptance Criteria 建立測試案例。
 - 驗證正常流程。
 - 驗證錯誤流程與邊界條件。
-- 檢查 API 回應狀態碼。
+- 驗證多視窗/多裝置即時同步與連線生命週期。
+- 檢查 API 回應狀態碼與 SignalR 廣播事件。
 - 檢查前端畫面是否正確呈現成功與錯誤狀態。
 - 回報缺陷並提供可重現步驟。
 
@@ -170,6 +176,7 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 6. 空白 title 不允許新增
 7. title 超過 100 字回傳 400
 8. status 不是 Todo / Doing / Done 時回傳錯誤
+9. 開啟多個視窗操作，新增/修改/刪除任務時其他視窗無需重新整理即時同步
 
 請輸出測試清單、預期結果與實際結果。
 ```
@@ -186,6 +193,9 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 | 空白 title | 前端阻擋或後端回傳 `400 Bad Request` |
 | title 超過 100 字 | 後端回傳 `400 Bad Request` |
 | status 傳入非法值 | 後端回傳 `400 Bad Request` |
+| 多視窗新增 Task | 視窗 A 新增任務，視窗 B 無需重新整理即時出現該任務 |
+| 多視窗修改 Task 狀態 | 視窗 A 修改任務狀態，視窗 B 即時同步更新該任務狀態 |
+| 多視窗刪除 Task | 視窗 A 刪除任務，視窗 B 即時同步移除該任務 |
 
 ## 角色協作流程
 

@@ -12,10 +12,12 @@
 - Vite
 - Axios
 - Vitest
+- `@microsoft/signalr`
 
 ### Backend
 
 - ASP.NET Core Web API
+- ASP.NET Core SignalR
 - Entity Framework Core
 - SQLite
 - xUnit
@@ -54,15 +56,16 @@
 - `status` 只能是 `Todo`、`Doing`、`Done`
 - 不合法輸入會回傳 `400 Bad Request`
 
-## API
+## API & SignalR Hub
 
-| Method | Endpoint | 說明 |
+| Method / Protocol | Endpoint | 說明 |
 | --- | --- | --- |
 | GET | `/api/tasks` | 查詢所有任務 |
 | GET | `/api/tasks?status=Todo` | 依狀態篩選任務 |
 | POST | `/api/tasks` | 新增任務 |
 | PATCH | `/api/tasks/{id}/status` | 修改任務狀態 |
 | DELETE | `/api/tasks/{id}` | 刪除任務 |
+| SignalR | `/hubs/tasks` | 即時通訊 Hub（廣播 `TaskCreated`, `TaskUpdated`, `TaskDeleted` 事件） |
 
 ## 啟動後端
 
@@ -163,12 +166,12 @@ ai-task-demo/
 
 1. 啟動後端
 2. 啟動前端
-3. 開啟 `http://localhost:5173`
-4. 新增一筆任務
+3. 開啟兩個瀏覽器視窗存取 `http://localhost:5173`（驗證多視窗即時同步）
+4. 在一邊新增一筆任務，確認另一邊即時同步顯示
 5. 使用狀態篩選
-6. 修改任務狀態
+6. 在一邊修改任務狀態，確認另一邊即時同步更新
 7. 測試空白 title 與超過 100 字 title
-8. 刪除任務並確認清單即時更新
+8. 在一邊刪除任務，確認另一邊即時同步刪除並更新清單
 
 ## 文件說明
 
