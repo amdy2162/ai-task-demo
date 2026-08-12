@@ -41,8 +41,8 @@ const groupedTasks = computed(() => {
         <span class="col-count">{{ groupedTasks[col.status].length }}</span>
       </div>
 
-      <div class="col-cards">
-        <div v-if="groupedTasks[col.status].length === 0" class="empty-col">
+      <TransitionGroup name="kanban-anim" tag="div" class="col-cards">
+        <div v-if="groupedTasks[col.status].length === 0" key="empty" class="empty-col">
           No tasks
         </div>
         <div
@@ -78,7 +78,7 @@ const groupedTasks = computed(() => {
             </select>
           </div>
         </div>
-      </div>
+      </TransitionGroup>
     </div>
   </div>
 </template>
@@ -189,5 +189,25 @@ const groupedTasks = computed(() => {
   .kanban-board {
     grid-template-columns: 1fr;
   }
+}
+
+/* Kanban 卡片淡入、淡出與平滑位移動畫 */
+.kanban-anim-enter-active,
+.kanban-anim-leave-active {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.kanban-anim-enter-from {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+}
+
+.kanban-anim-leave-to {
+  opacity: 0;
+  transform: scale(0.93);
+}
+
+.kanban-anim-move {
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 </style>
