@@ -19,7 +19,8 @@ builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
-        "http://127.0.0.1:5174"
+        "http://127.0.0.1:5174",
+        "https://amdy2162.github.io"
     )
     .AllowAnyHeader()
     .AllowAnyMethod()
@@ -40,7 +41,14 @@ app.MapHub<TaskHub>("/hubs/tasks");
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    if (db.Database.IsRelational())
+    {
+        db.Database.Migrate();
+    }
+    else
+    {
+        db.Database.EnsureCreated();
+    }
 }
 
 app.Run();
