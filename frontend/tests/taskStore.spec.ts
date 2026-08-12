@@ -1,10 +1,20 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as taskApi from '../src/api/taskApi'
+import { signalRService } from '../src/services/signalrService'
 import { useTaskStore } from '../src/stores/taskStore'
 import type { TaskItem } from '../src/types/task'
 
 vi.mock('../src/api/taskApi')
+vi.mock('../src/services/signalrService', () => ({
+  signalRService: {
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+    isConnected: vi.fn().mockReturnValue(true),
+    onTaskEvent: vi.fn(),
+  },
+}))
+
 const sample = { id: 1, title: 'Test', description: '', status: 'Todo' as const, createdAt: '2026-08-10T00:00:00Z' }
 
 describe('taskStore', () => {
@@ -125,4 +135,29 @@ describe('taskStore', () => {
     store.setViewMode('list')
     expect(store.viewMode).toBe('list')
   })
+
+  it('starts realtime connection and handles task events', async () => {
+    vi.mocked(signalRService.isConnected).mockReturnValue(true)
+    vi.mocked(taskApi.getTasks).mockResolvedValue([sample])
+    const store = useTaskStore()
+    await store.startRealtime()
+
+    expect(signalRService.onTaskEvent).toHaveBeenCalled()
+    expect(signalRService.start).toHaveBeenCalled()
+    expect(store.isRealtimeConnected).toBe(true)
+
+    const callback = vi.mocked(signalRService.onTaskEvent).mock.calls[0][0]
+    callback()
+    expect(taskApi.getTasks).toHaveBeenCalled()
+  })
+
+  it('stops realtime connection', async () => {
+    const store = useTaskStore()
+    store.isRealtimeConnected = true
+    await store.stopRealtime()
+
+    expect(signalRService.stop).toHaveBeenCalled()
+    expect(store.isRealtimeConnected).toBe(false)
+  })
 })
+
