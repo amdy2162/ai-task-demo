@@ -284,6 +284,34 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.Equal(TaskState.Todo, persisted.Status);
     }
 
+    [Fact]
+    public async Task Delete_removes_task_and_returns_no_content()
+    {
+        await SeedAsync(NewItem("Task to delete", TaskState.Todo, DateTime.UtcNow));
+        int id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
+        }
+
+        var response = await factory.CreateClient().DeleteAsync($"/api/tasks/{id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var exists = await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Tasks.AnyAsync(task => task.Id == id);
+        Assert.False(exists);
+    }
+
+    [Fact]
+    public async Task Delete_returns_not_found_for_unknown_id()
+    {
+        var response = await factory.CreateClient().DeleteAsync("/api/tasks/99999");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private async Task SeedAsync(params TaskItem[] items)
     {
         using var scope = factory.Services.CreateScope();

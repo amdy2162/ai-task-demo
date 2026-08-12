@@ -48,6 +48,10 @@ function filterChanged(event: Event): void {
 function statusChanged(id: number, event: Event): void {
   void store.changeStatus(id, (event.target as HTMLSelectElement).value as TaskStatus)
 }
+
+function deleteTask(id: number): void {
+  void store.removeTask(id)
+}
 </script>
 
 <template>
@@ -103,12 +107,23 @@ function statusChanged(id: number, event: Event): void {
             <p>{{ task.description || 'No description' }}</p>
             <small :data-test="`created-at-${task.id}`">Created {{ new Date(task.createdAt).toLocaleString() }}</small>
           </div>
-          <label class="status-control">
-            Status
-            <select :value="task.status" :data-test="`task-status-${task.id}`" @change="statusChanged(task.id, $event)">
-              <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
-            </select>
-          </label>
+          <div class="actions">
+            <label class="status-control">
+              Status
+              <select :value="task.status" :data-test="`task-status-${task.id}`" @change="statusChanged(task.id, $event)">
+                <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
+              </select>
+            </label>
+            <button
+              type="button"
+              class="btn-delete"
+              :data-test="`delete-task-${task.id}`"
+              aria-label="Delete task"
+              @click="deleteTask(task.id)"
+            >
+              Delete
+            </button>
+          </div>
         </li>
       </ul>
     </section>
@@ -145,6 +160,15 @@ button:hover { background: #284bb4; }
 .task p { margin: 7px 0; color: #475569; }
 .task small { color: #64748b; }
 .status-control { width: 118px; flex: 0 0 auto; }
+.actions { display: flex; align-items: flex-end; gap: 12px; }
+.btn-delete { padding: 9px 12px; border: 1px solid #fecdd3; border-radius: 7px; background: #fff1f2; color: #be123c; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.btn-delete:hover { background: #ffe4e6; border-color: #fda4af; }
 .error { color: #b42318; font-weight: 600; }
-@media (max-width: 560px) { .shell { margin-top: 28px; } .toolbar, .task { align-items: stretch; flex-direction: column; } .filter, .status-control { width: 100%; } }
+@media (max-width: 560px) {
+  .shell { margin-top: 28px; }
+  .toolbar, .task { align-items: stretch; flex-direction: column; }
+  .filter, .status-control { width: 100%; }
+  .actions { flex-direction: column; width: 100%; }
+  .btn-delete { width: 100%; }
+}
 </style>

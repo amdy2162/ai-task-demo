@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { createTask, getTasks, updateTaskStatus } from '../api/taskApi'
+import { createTask, deleteTask, getTasks, updateTaskStatus } from '../api/taskApi'
 import type { CreateTaskRequest, TaskItem, TaskStatus } from '../types/task'
 
 export type StatusFilter = 'All' | TaskStatus
@@ -59,5 +59,15 @@ export const useTaskStore = defineStore('tasks', () => {
     }
   }
 
-  return { tasks, selectedStatus, isLoading, error, fetchTasks, setStatusFilter, addTask, changeStatus }
+  async function removeTask(id: number): Promise<void> {
+    error.value = ''
+    try {
+      await deleteTask(id)
+      await fetchTasks()
+    } catch {
+      error.value = 'Unable to delete task.'
+    }
+  }
+
+  return { tasks, selectedStatus, isLoading, error, fetchTasks, setStatusFilter, addTask, changeStatus, removeTask }
 })

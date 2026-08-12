@@ -21,3 +21,7 @@ export async function updateTaskStatus(id: number, status: TaskStatus): Promise<
   const response = await apiClient.patch<TaskItem>(`/tasks/${id}/status`, { status })
   return response.data
 }
+
+export async function deleteTask(id: number): Promise<void> {
+  await apiClient.delete(`/tasks/${id}`)
+}

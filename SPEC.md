@@ -41,6 +41,7 @@ Backend
 2. 新增 Task
 3. 修改 Task Status
 4. 依 Status 篩選
+5. 刪除 Task
 
 ## Validation
 
@@ -56,11 +57,14 @@ POST /api/tasks
 
 PATCH /api/tasks/{id}/status
 
+DELETE /api/tasks/{id}
+
 ## Acceptance Criteria
 
 - 可以新增 Task
 - 可以查詢 Task
 - 可以修改 Task 狀態
+- 可以刪除 Task
 - 不允許空白 title
 - title 超過 100 字回傳 400
 

@@ -93,6 +93,7 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 
 - 建立 `/api/tasks` 查詢與新增 API。
 - 建立 `/api/tasks/{id}/status` 狀態修改 API。
+- 建立 `/api/tasks/{id}` 刪除任務 API。
 - 建立 SQLite 資料儲存與 EF Core DbContext。
 - 確認前端 `taskApi.ts` 與後端 API 路徑一致。
 - 驗證 API 回傳格式符合前端 `Task` 型別。
@@ -110,6 +111,7 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 - 使用 Pinia 管理任務列表、載入狀態、錯誤狀態與篩選條件。
 - 串接後端 API。
 - 實作 title 驗證與錯誤提示。
+- 實作刪除任務按鈕與狀態更新。
 - 撰寫前端元件測試與 Store 測試。
 
 ### Prompt 設定範例
@@ -123,7 +125,8 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 2. 新增任務表單
 3. 狀態篩選
 4. 任務狀態修改
-5. title 必填與 100 字限制提示
+5. 刪除任務按鈕與操作
+6. title 必填與 100 字限制提示
 
 請使用 TypeScript、Pinia 與 Vite。
 修改後請補上必要測試。
@@ -132,9 +135,9 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 ### 本專案中的前端工程師產出
 
 - 建立 `src/types/task.ts` 定義任務型別。
-- 建立 `src/api/taskApi.ts` 封裝 API 呼叫。
-- 建立 `src/stores/taskStore.ts` 管理任務狀態。
-- 建立 `src/App.vue` 提供新增、查詢、篩選與修改狀態功能。
+- 建立 `src/api/taskApi.ts` 封裝 API 呼叫（包含刪除任務 API）。
+- 建立 `src/stores/taskStore.ts` 管理任務狀態（包含刪除任務 Action）。
+- 建立 `src/App.vue` 提供新增、查詢、篩選、修改狀態與刪除任務功能。
 - 加入前端測試驗證主要操作流程。
 
 ## QA 角色設定
@@ -163,9 +166,10 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 2. 可以查詢 Task
 3. 可以修改 Task 狀態
 4. 可以依 Status 篩選
-5. 空白 title 不允許新增
-6. title 超過 100 字回傳 400
-7. status 不是 Todo / Doing / Done 時回傳錯誤
+5. 可以刪除 Task
+6. 空白 title 不允許新增
+7. title 超過 100 字回傳 400
+8. status 不是 Todo / Doing / Done 時回傳錯誤
 
 請輸出測試清單、預期結果與實際結果。
 ```
@@ -178,6 +182,7 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 | 查詢 Task | 回傳任務列表 |
 | 修改狀態為 `Doing` | 任務狀態成功更新 |
 | 篩選 `Todo` | 只顯示 `Todo` 任務 |
+| 刪除 Task | `DELETE /api/tasks/{id}` 回傳 204，任務從列表移除；若不存在回傳 404 |
 | 空白 title | 前端阻擋或後端回傳 `400 Bad Request` |
 | title 超過 100 字 | 後端回傳 `400 Bad Request` |
 | status 傳入非法值 | 後端回傳 `400 Bad Request` |
