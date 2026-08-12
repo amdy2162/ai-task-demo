@@ -12,7 +12,14 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite($"Data Source={databasePath}"));
 builder.Services.AddScoped<TaskService>();
 builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
-    policy.WithOrigins("http://localhost:5173").AllowAnyHeader().AllowAnyMethod()));
+    policy.WithOrigins(
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174"
+    )
+    .AllowAnyHeader()
+    .AllowAnyMethod()));
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())
@@ -20,8 +27,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseAuthorization();
 app.UseCors("Frontend");
+app.UseAuthorization();
 app.MapControllers();
 
 using (var scope = app.Services.CreateScope())
