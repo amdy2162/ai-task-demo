@@ -285,6 +285,65 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Put_updates_task_fields_and_persists()
+    {
+        await SeedAsync(NewItem("Original Title", TaskState.Todo, DateTime.UtcNow));
+        int id;
+        using (var scope = factory.Services.CreateScope())
+        {
+            id = scope.ServiceProvider.GetRequiredService<AppDbContext>().Tasks.Single().Id;
+        }
+
+        var response = await factory.CreateClient().PutAsJsonAsync($"/api/tasks/{id}", new
+        {
+            title = "Updated Title",
+            description = "Updated Description",
+            status = "Doing"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var item = await response.Content.ReadFromJsonAsync<TaskResponse>(JsonOptions);
+        Assert.Equal("Updated Title", item!.Title);
+        Assert.Equal("Updated Description", item.Description);
+        Assert.Equal(TaskState.Doing, item.Status);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var persisted = await verifyScope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Tasks.AsNoTracking().SingleAsync(task => task.Id == id);
+        Assert.Equal("Updated Title", persisted.Title);
+        Assert.Equal("Updated Description", persisted.Description);
+        Assert.Equal(TaskState.Doing, persisted.Status);
+    }
+
+    [Fact]
+    public async Task Put_returns_not_found_for_unknown_id()
+    {
+        var response = await factory.CreateClient().PutAsJsonAsync("/api/tasks/99999", new
+        {
+            title = "Valid Title",
+            description = "Valid Description",
+            status = "Todo"
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Put_rejects_blank_title(string title)
+    {
+        var response = await factory.CreateClient().PutAsJsonAsync("/api/tasks/1", new
+        {
+            title,
+            description = "Some description",
+            status = "Todo"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Delete_removes_task_and_returns_no_content()
     {
         await SeedAsync(NewItem("Task to delete", TaskState.Todo, DateTime.UtcNow));

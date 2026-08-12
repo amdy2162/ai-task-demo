@@ -62,6 +62,41 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         return StatusCode(StatusCodes.Status201Created, response);
     }
 
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<TaskResponse>> Update(
+        int id,
+        UpdateTaskRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+        {
+            ModelState.AddModelError(nameof(request.Title), "Title is required.");
+            return ValidationProblem(ModelState);
+        }
+
+        if (request.Status is null || !Enum.IsDefined(request.Status.Value))
+        {
+            ModelState.AddModelError(nameof(request.Status), "Status must be Todo, Doing, or Done.");
+            return ValidationProblem(ModelState);
+        }
+
+        var item = await service.UpdateAsync(
+            id,
+            request.Title,
+            request.Description,
+            request.Status.Value,
+            cancellationToken);
+
+        if (item is null)
+        {
+            return NotFound();
+        }
+
+        var response = ToResponse(item);
+        await hubContext.Clients.All.SendAsync("TaskUpdated", response, cancellationToken);
+        return Ok(response);
+    }
+
     [HttpPatch("{id:int}/status")]
     public async Task<ActionResult<TaskResponse>> UpdateStatus(
         int id,

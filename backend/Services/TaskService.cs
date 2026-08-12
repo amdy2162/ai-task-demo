@@ -55,6 +55,26 @@ public sealed class TaskService(AppDbContext db)
         return item;
     }
 
+    public async Task<TaskItem?> UpdateAsync(
+        int id,
+        string title,
+        string? description,
+        TaskState status,
+        CancellationToken cancellationToken)
+    {
+        var item = await db.Tasks.FindAsync([id], cancellationToken);
+        if (item is null)
+        {
+            return null;
+        }
+
+        item.Title = title.Trim();
+        item.Description = description?.Trim() ?? string.Empty;
+        item.Status = status;
+        await db.SaveChangesAsync(cancellationToken);
+        return item;
+    }
+
     public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);

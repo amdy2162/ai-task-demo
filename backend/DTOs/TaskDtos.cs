@@ -10,6 +10,11 @@ public sealed record CreateTaskRequest(
 
 public sealed record UpdateTaskStatusRequest(TaskState? Status);
 
+public sealed record UpdateTaskRequest(
+    [param: Required, MaxLength(100)] string? Title,
+    string? Description,
+    TaskState? Status);
+
 public sealed record TaskResponse(
     int Id,
     string Title,
