@@ -4,13 +4,19 @@ import { createTask, deleteTask, getTasks, updateTaskStatus } from '../api/taskA
 import type { CreateTaskRequest, TaskItem, TaskStatus } from '../types/task'
 
 export type StatusFilter = 'All' | TaskStatus
+export type ViewMode = 'list' | 'kanban'
 
 export const useTaskStore = defineStore('tasks', () => {
   const tasks = ref<TaskItem[]>([])
   const selectedStatus = ref<StatusFilter>('All')
+  const viewMode = ref<ViewMode>('list')
   const isLoading = ref(false)
   const error = ref('')
   let latestFetch = 0
+
+  function setViewMode(mode: ViewMode): void {
+    viewMode.value = mode
+  }
 
   async function fetchTasks(): Promise<void> {
     const fetchId = ++latestFetch
@@ -69,5 +75,5 @@ export const useTaskStore = defineStore('tasks', () => {
     }
   }
 
-  return { tasks, selectedStatus, isLoading, error, fetchTasks, setStatusFilter, addTask, changeStatus, removeTask }
+  return { tasks, selectedStatus, viewMode, isLoading, error, fetchTasks, setStatusFilter, setViewMode, addTask, changeStatus, removeTask }
 })
