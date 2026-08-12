@@ -13,28 +13,44 @@ namespace AiTaskDemo.Api.Controllers;
 public sealed class TasksController(TaskService service, IHubContext<TaskHub> hubContext) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<TaskResponse>>> GetAll(
-        [FromQuery] TaskState? status,
+    public async Task<ActionResult<PagedResult<TaskResponse>>> GetAll(
+        [FromQuery] string? status,
         [FromQuery] string? search,
         [FromQuery] string? sortBy,
         [FromQuery] string? sortOrder,
-        CancellationToken cancellationToken)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        if (Request.Query.TryGetValue("status", out var rawStatus) &&
-            (rawStatus.Count != 1 || !TaskStatusValidation.TryParse(rawStatus[0], out _)))
+        if (page < 1)
         {
-            ModelState.AddModelError(nameof(status), "Status must be Todo, Doing, or Done.");
+            ModelState.AddModelError(nameof(page), "Page must be greater than or equal to 1.");
             return ValidationProblem(ModelState);
         }
 
-        if (status is not null && !Enum.IsDefined(status.Value))
+        if (pageSize < 1 || pageSize > 100)
         {
-            ModelState.AddModelError(nameof(status), "Status must be Todo, Doing, or Done.");
+            ModelState.AddModelError(nameof(pageSize), "PageSize must be between 1 and 100.");
             return ValidationProblem(ModelState);
         }
 
-        var items = await service.GetAllAsync(status, search, sortBy, sortOrder, cancellationToken);
-        return Ok(items.Select(ToResponse));
+        TaskState? taskStatus = null;
+        if (Request.Query.TryGetValue("status", out var rawStatus))
+        {
+            if (rawStatus.Count != 1 || !TaskStatusValidation.TryParse(rawStatus[0], out var parsedStatus))
+            {
+                ModelState.AddModelError(nameof(status), "Status must be Todo, Doing, or Done.");
+                return ValidationProblem(ModelState);
+            }
+            taskStatus = parsedStatus;
+        }
+
+        var (items, totalCount) = await service.GetPagedAsync(taskStatus, search, sortBy, sortOrder, page, pageSize, cancellationToken);
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+        var responses = items.Select(ToResponse).ToList();
+
+        var result = new PagedResult<TaskResponse>(responses, totalCount, page, pageSize, totalPages);
+        return Ok(result);
     }
 
     [HttpPost]

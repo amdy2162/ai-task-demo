@@ -9,11 +9,13 @@ public sealed class TaskService(AppDbContext db)
 {
     private static readonly TimeSpan TaipeiOffset = TimeSpan.FromHours(8);
 
-    public Task<List<TaskItem>> GetAllAsync(
+    public async Task<(List<TaskItem> Items, int TotalCount)> GetPagedAsync(
         TaskState? status,
         string? search,
         string? sortBy,
         string? sortOrder,
+        int page,
+        int pageSize,
         CancellationToken cancellationToken)
     {
         var query = db.Tasks.AsNoTracking();
@@ -31,23 +33,24 @@ public sealed class TaskService(AppDbContext db)
                 EF.Functions.Like(item.Description, $"%{keyword}%"));
         }
 
-        var isAscending = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
+        var totalCount = await query.CountAsync(cancellationToken);
 
+        var isAscending = string.Equals(sortOrder, "asc", StringComparison.OrdinalIgnoreCase);
         query = (sortBy?.ToLowerInvariant()) switch
         {
-            "title" => isAscending
-                ? query.OrderBy(item => item.Title)
-                : query.OrderByDescending(item => item.Title),
-            "status" => isAscending
-                ? query.OrderBy(item => item.Status)
-                : query.OrderByDescending(item => item.Status),
-            _ => isAscending
-                ? query.OrderBy(item => item.CreatedAt)
-                : query.OrderByDescending(item => item.CreatedAt),
+            "title" => isAscending ? query.OrderBy(x => x.Title) : query.OrderByDescending(x => x.Title),
+            "status" => isAscending ? query.OrderBy(x => x.Status) : query.OrderByDescending(x => x.Status),
+            _ => isAscending ? query.OrderBy(x => x.CreatedAt) : query.OrderByDescending(x => x.CreatedAt),
         };
 
-        return query.ToListAsync(cancellationToken);
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
+
 
     public async Task<TaskItem> CreateAsync(
         string title,

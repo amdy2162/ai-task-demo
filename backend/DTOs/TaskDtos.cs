@@ -21,3 +21,11 @@ public sealed record TaskResponse(
     string Description,
     TaskState Status,
     DateTime CreatedAt);
+
+public sealed record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int TotalCount,
+    int Page,
+    int PageSize,
+    int TotalPages);
+
