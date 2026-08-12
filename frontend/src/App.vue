@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useTaskStore, type StatusFilter, type ViewMode } from './stores/taskStore'
 import type { CreateTaskRequest, TaskStatus } from './types/task'
@@ -10,10 +10,17 @@ import TaskKanban from './components/TaskKanban.vue'
 import TaskNotification from './components/TaskNotification.vue'
 
 const store = useTaskStore()
-const { tasks, selectedStatus, isLoading, error, viewMode } = storeToRefs(store)
+const { tasks, selectedStatus, isLoading, error, viewMode, isRealtimeConnected } = storeToRefs(store)
 const taskFormRef = ref<InstanceType<typeof TaskForm> | null>(null)
 
-onMounted(() => store.fetchTasks())
+onMounted(() => {
+  store.fetchTasks()
+  void store.startRealtime()
+})
+
+onUnmounted(() => {
+  void store.stopRealtime()
+})
 
 async function handleCreate(request: CreateTaskRequest): Promise<void> {
   const created = await store.addTask(request)
@@ -42,9 +49,19 @@ function handleDeleteTask(id: number): void {
 <template>
   <main class="shell">
     <header class="page-header">
-      <p class="eyebrow">WORKSPACE</p>
+      <div class="header-eyebrow-row">
+        <p class="eyebrow">WORKSPACE</p>
+        <div
+          class="live-badge"
+          :class="{ connected: isRealtimeConnected }"
+          data-test="live-sync-indicator"
+        >
+          <span class="live-dot"></span>
+          {{ isRealtimeConnected ? 'Live Sync' : 'Offline' }}
+        </div>
+      </div>
       <h1>Task Management</h1>
-      <p>Capture work, track progress, and organize seamlessly across views.</p>
+      <p>Capture work, track progress, and collaborate in real-time across views.</p>
     </header>
 
     <TaskForm ref="taskFormRef" @create="handleCreate" />
@@ -84,6 +101,43 @@ function handleDeleteTask(id: number): void {
 :global(button), :global(input), :global(textarea), :global(select) { font: inherit; }
 .shell { width: min(920px, calc(100% - 32px)); margin: 48px auto 72px; }
 .page-header { margin-bottom: 28px; }
+.header-eyebrow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.header-eyebrow-row .eyebrow {
+  margin: 0;
+}
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #cbd5e1;
+  transition: all 0.2s ease;
+}
+.live-badge.connected {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.live-badge.connected .live-dot {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+}
 .page-header h1 { margin: 0; font-size: clamp(2rem, 5vw, 2.7rem); letter-spacing: -0.045em; color: #0f172a; }
 .page-header p:not(.eyebrow) { margin: 8px 0 0; color: #64748b; }
 .eyebrow { margin: 0 0 8px; color: #2563eb; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; }

@@ -1,14 +1,16 @@
 using AiTaskDemo.Api.DTOs;
+using AiTaskDemo.Api.Hubs;
 using AiTaskDemo.Api.Models;
 using AiTaskDemo.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using TaskState = AiTaskDemo.Api.Models.TaskStatus;
 
 namespace AiTaskDemo.Api.Controllers;
 
 [ApiController]
 [Route("api/tasks")]
-public sealed class TasksController(TaskService service) : ControllerBase
+public sealed class TasksController(TaskService service, IHubContext<TaskHub> hubContext) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<TaskResponse>>> GetAll(
@@ -55,7 +57,9 @@ public sealed class TasksController(TaskService service) : ControllerBase
             request.Status,
             cancellationToken);
 
-        return StatusCode(StatusCodes.Status201Created, ToResponse(item));
+        var response = ToResponse(item);
+        await hubContext.Clients.All.SendAsync("TaskCreated", response, cancellationToken);
+        return StatusCode(StatusCodes.Status201Created, response);
     }
 
     [HttpPatch("{id:int}/status")]
@@ -71,7 +75,14 @@ public sealed class TasksController(TaskService service) : ControllerBase
         }
 
         var item = await service.UpdateStatusAsync(id, request.Status.Value, cancellationToken);
-        return item is null ? NotFound() : Ok(ToResponse(item));
+        if (item is null)
+        {
+            return NotFound();
+        }
+
+        var response = ToResponse(item);
+        await hubContext.Clients.All.SendAsync("TaskUpdated", response, cancellationToken);
+        return Ok(response);
     }
 
     [HttpDelete("{id:int}")]
@@ -80,7 +91,13 @@ public sealed class TasksController(TaskService service) : ControllerBase
         CancellationToken cancellationToken)
     {
         var deleted = await service.DeleteAsync(id, cancellationToken);
-        return deleted ? NoContent() : NotFound();
+        if (!deleted)
+        {
+            return NotFound();
+        }
+
+        await hubContext.Clients.All.SendAsync("TaskDeleted", id, cancellationToken);
+        return NoContent();
     }
 
     private static TaskResponse ToResponse(TaskItem item) =>

@@ -2,9 +2,18 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as taskApi from '../src/api/taskApi'
+import { signalRService } from '../src/services/signalrService'
 import App from '../src/App.vue'
 
 vi.mock('../src/api/taskApi')
+vi.mock('../src/services/signalrService', () => ({
+  signalRService: {
+    start: vi.fn().mockResolvedValue(undefined),
+    stop: vi.fn().mockResolvedValue(undefined),
+    isConnected: vi.fn().mockReturnValue(false),
+    onTaskEvent: vi.fn(),
+  },
+}))
 
 const mountApp = () => mount(App, { global: { plugins: [createPinia()] } })
 
@@ -13,12 +22,39 @@ describe('App', () => {
     setActivePinia(createPinia())
     vi.resetAllMocks()
     vi.mocked(taskApi.getTasks).mockResolvedValue([])
+    vi.mocked(signalRService.isConnected).mockReturnValue(false)
   })
 
   it('loads tasks on mount and shows the empty state', async () => {
     const wrapper = mountApp()
 
     await vi.waitFor(() => expect(wrapper.text()).toContain('No tasks found.'))
+  })
+
+  it('starts real-time sync on mount and stops on unmount', async () => {
+    vi.mocked(signalRService.isConnected).mockReturnValue(true)
+    const wrapper = mountApp()
+
+    expect(signalRService.start).toHaveBeenCalled()
+    await vi.waitFor(() => {
+      const badge = wrapper.get('[data-test="live-sync-indicator"]')
+      expect(badge.text()).toContain('Live Sync')
+      expect(badge.classes()).toContain('connected')
+    })
+
+    wrapper.unmount()
+    expect(signalRService.stop).toHaveBeenCalled()
+  })
+
+  it('displays Offline status when real-time connection is inactive', async () => {
+    vi.mocked(signalRService.isConnected).mockReturnValue(false)
+    const wrapper = mountApp()
+
+    await vi.waitFor(() => {
+      const badge = wrapper.get('[data-test="live-sync-indicator"]')
+      expect(badge.text()).toContain('Offline')
+      expect(badge.classes()).not.toContain('connected')
+    })
   })
 
   it('prevents a whitespace-only title', async () => {

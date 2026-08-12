@@ -312,6 +312,13 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Hub_endpoint_is_accessible()
+    {
+        var response = await factory.CreateClient().PostAsync("/hubs/tasks/negotiate?negotiateVersion=1", null);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.BadRequest);
+    }
+
     private async Task SeedAsync(params TaskItem[] items)
     {
         using var scope = factory.Services.CreateScope();

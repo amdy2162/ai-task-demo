@@ -1,4 +1,5 @@
 using AiTaskDemo.Api.Data;
+using AiTaskDemo.Api.Hubs;
 using AiTaskDemo.Api.Models;
 using AiTaskDemo.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new TaskStatusJsonConverter()));
+builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
 var databasePath = Path.Combine(builder.Environment.ContentRootPath, "tasks.db");
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -19,7 +21,8 @@ builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
         "http://127.0.0.1:5174"
     )
     .AllowAnyHeader()
-    .AllowAnyMethod()));
+    .AllowAnyMethod()
+    .AllowCredentials()));
 
 var app = builder.Build();
 if (app.Environment.IsDevelopment())
@@ -30,6 +33,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("Frontend");
 app.UseAuthorization();
 app.MapControllers();
+app.MapHub<TaskHub>("/hubs/tasks");
 
 using (var scope = app.Services.CreateScope())
 {

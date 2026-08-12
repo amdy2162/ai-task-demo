@@ -13,9 +13,11 @@ Frontend
 - TypeScript
 - Pinia
 - Vite
+- @microsoft/signalr
 
 Backend
 - ASP.NET Core Web API
+- ASP.NET Core SignalR
 - Entity Framework Core
 - SQLite
 
@@ -49,7 +51,7 @@ Backend
 - title 最大 100 字
 - status 必須為 Todo / Doing / Done
 
-## API
+## API & Hub
 
 GET /api/tasks
 
@@ -59,6 +61,15 @@ PATCH /api/tasks/{id}/status
 
 DELETE /api/tasks/{id}
 
+### SignalR Hub
+
+端點：`/hubs/tasks`
+
+廣播事件：
+- `TaskCreated`：新增任務時廣播
+- `TaskUpdated`：修改任務狀態時廣播
+- `TaskDeleted`：刪除任務時廣播
+
 ## Acceptance Criteria
 
 - 可以新增 Task
@@ -67,6 +78,7 @@ DELETE /api/tasks/{id}
 - 可以刪除 Task
 - 不允許空白 title
 - title 超過 100 字回傳 400
+- 多視窗/多裝置操作時即時推送更新，無需手動重新整理
 
 ## 後續補充
 

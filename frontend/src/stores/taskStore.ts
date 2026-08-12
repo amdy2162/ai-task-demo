@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { createTask, deleteTask, getTasks, updateTaskStatus } from '../api/taskApi'
+import { signalRService } from '../services/signalrService'
 import type { CreateTaskRequest, TaskItem, TaskStatus } from '../types/task'
 
 export type StatusFilter = 'All' | TaskStatus
@@ -12,6 +13,7 @@ export const useTaskStore = defineStore('tasks', () => {
   const viewMode = ref<ViewMode>('list')
   const isLoading = ref(false)
   const error = ref('')
+  const isRealtimeConnected = ref(false)
   let latestFetch = 0
 
   function setViewMode(mode: ViewMode): void {
@@ -75,5 +77,18 @@ export const useTaskStore = defineStore('tasks', () => {
     }
   }
 
-  return { tasks, selectedStatus, viewMode, isLoading, error, fetchTasks, setStatusFilter, setViewMode, addTask, changeStatus, removeTask }
+  async function startRealtime(): Promise<void> {
+    signalRService.onTaskEvent(() => {
+      void fetchTasks()
+    })
+    await signalRService.start()
+    isRealtimeConnected.value = signalRService.isConnected()
+  }
+
+  async function stopRealtime(): Promise<void> {
+    await signalRService.stop()
+    isRealtimeConnected.value = false
+  }
+
+  return { tasks, selectedStatus, viewMode, isLoading, error, isRealtimeConnected, fetchTasks, setStatusFilter, setViewMode, addTask, changeStatus, removeTask, startRealtime, stopRealtime }
 })
