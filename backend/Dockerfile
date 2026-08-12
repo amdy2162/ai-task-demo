@@ -14,15 +14,16 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# 複製專案檔並先進行 NuGet 套件還原（利用 Docker 快取機制，若 csproj 沒改就不會重複下載套件）
-COPY ["AiTaskDemo.Api.csproj", "./"]
-RUN dotnet restore "AiTaskDemo.Api.csproj"
+# 關閉 .NET CLI 遙測與初次體驗提示，加速容器內編譯與避免網路掛起
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+ENV DOTNET_NOLOGO=1
 
-# 複製其餘所有後端原始碼
+# 複製後端專案檔與原始碼
 COPY . .
 
-# 執行生產環境編譯與發布 (Publish)
-RUN dotnet publish "AiTaskDemo.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
+# 執行生產環境編譯與發布 (一次完成還原與發布)
+RUN dotnet publish "AiTaskDemo.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false --nologo
 
 # ------------------------------------------------------------------------------
 # 階段 2：正式運行環境 (Runtime Stage)
