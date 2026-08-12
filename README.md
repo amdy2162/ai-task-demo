@@ -81,7 +81,27 @@
 }
 ```
 
-## 啟動後端
+## 🐳 使用 Docker Compose 一鍵啟動（推薦）
+
+專案支援 Docker 容器化，不需在本機安裝 .NET 或 Node.js，只要安裝 Docker 即可一鍵啟動完整系統：
+
+```powershell
+# 一鍵建置並啟動前後端容器
+docker compose up --build
+```
+
+啟動後即可存取：
+- **前端 Web 介面 (Nginx)**: `http://localhost:8080`
+- **後端 Web API (.NET 10)**: `http://localhost:5000`
+
+若要停止容器：
+```powershell
+docker compose down
+```
+
+## 本機開發啟動方式 (手動)
+
+### 啟動後端
 
 在專案根目錄執行：
 
@@ -96,7 +116,7 @@ dotnet run --project backend/AiTaskDemo.Api.csproj --urls http://localhost:5000
 http://localhost:5000
 ```
 
-## 啟動前端
+### 啟動前端
 
 另開一個 PowerShell：
 
