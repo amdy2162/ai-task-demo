@@ -127,18 +127,38 @@ dotnet build backend/AiTaskDemo.Api.csproj
 ```
 
 ### 前端測試
-
 ```powershell
 cd frontend
 npm test
 ```
 
-### 前端建置
+### 前端 E2E 端到端測試 (Playwright)
+```powershell
+cd frontend
+npm run test:e2e
+```
 
+### 前端建置
 ```powershell
 cd frontend
 npm run build
 ```
+
+## CI/CD Pipeline (GitHub Actions)
+
+專案包含完整的自動化 CI/CD 流水線（設定於 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)），在每次 `git push` 或發起 `Pull Request` 時自動執行：
+
+1. **後端 CI**：
+   - 設定 .NET 10 SDK
+   - 執行 `dotnet restore` 與 `dotnet build`
+   - 執行全部 40 個 xUnit 整合測試並收集程式碼覆蓋率
+2. **前端 CI**：
+   - 設定 Node.js 22
+   - 執行 `npm ci` 安裝套件
+   - 執行 37 個 Vitest 單元/元件測試
+   - 執行 `vue-tsc` 型別檢查與 `vite build` 生產建置
+   - 安裝 Playwright 瀏覽器並執行 E2E 瀏覽器端到端測試
+3. **品質閘門**：任何測試未通過將自動阻擋合併（Block PR merge）。
 
 ## SQLite 資料庫
 

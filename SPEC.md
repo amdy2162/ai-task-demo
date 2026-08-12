@@ -105,6 +105,8 @@ DELETE /api/tasks/{id}
 - title 超過 100 字回傳 400
 - 多視窗/多裝置操作時即時推送更新，無需手動重新整理
 - 伺服器端未處理例外統一回傳 RFC 7807 ProblemDetails 格式
+- 具備 Playwright E2E 自動化測試模擬真實使用者操作（新增/驗證/看板/刪除）
+- 具備 GitHub Actions CI/CD Pipeline 在每次 Push/PR 自動執行前後端全套測試與建置檢查
 
 ## 後續補充
 
