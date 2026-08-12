@@ -27,10 +27,12 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Older", TaskState.Todo, new DateTime(2026, 8, 9, 8, 0, 0, DateTimeKind.Utc)),
             NewItem("Newer", TaskState.Done, new DateTime(2026, 8, 10, 8, 0, 0, DateTimeKind.Utc)));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks", JsonOptions);
+        var result = await factory.CreateClient()
+            .GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks", JsonOptions);
 
-        Assert.Equal(new[] { "Newer", "Older" }, items!.Select(x => x.Title));
+        Assert.NotNull(result);
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(new[] { "Newer", "Older" }, result.Items.Select(x => x.Title));
     }
 
     [Fact]
@@ -40,10 +42,11 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Todo item", TaskState.Todo, DateTime.UtcNow),
             NewItem("Doing item", TaskState.Doing, DateTime.UtcNow));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?status=Doing", JsonOptions);
+        var result = await factory.CreateClient()
+            .GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?status=Doing", JsonOptions);
 
-        var item = Assert.Single(items!);
+        Assert.NotNull(result);
+        var item = Assert.Single(result.Items);
         Assert.Equal("Doing item", item.Title);
         Assert.Equal(TaskState.Doing, item.Status);
     }
@@ -386,12 +389,13 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Backend API", "Add SignalR Hub", TaskState.Doing, DateTime.UtcNow),
             NewItem("Write documentation", "Summarize frontend features", TaskState.Done, DateTime.UtcNow));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?search=frontend", JsonOptions);
+        var result = await factory.CreateClient()
+            .GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?search=frontend", JsonOptions);
 
-        Assert.Equal(2, items!.Count);
-        Assert.Contains(items, x => x.Title == "Frontend design");
-        Assert.Contains(items, x => x.Title == "Write documentation");
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Items.Count);
+        Assert.Contains(result.Items, x => x.Title == "Frontend design");
+        Assert.Contains(result.Items, x => x.Title == "Write documentation");
     }
 
     [Fact]
@@ -402,10 +406,60 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             NewItem("Alice", TaskState.Todo, DateTime.UtcNow),
             NewItem("Bob", TaskState.Todo, DateTime.UtcNow));
 
-        var items = await factory.CreateClient()
-            .GetFromJsonAsync<List<TaskResponse>>("/api/tasks?sortBy=title&sortOrder=asc", JsonOptions);
+        var result = await factory.CreateClient()
+            .GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?sortBy=title&sortOrder=asc", JsonOptions);
 
-        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, items!.Select(x => x.Title));
+        Assert.NotNull(result);
+        Assert.Equal(new[] { "Alice", "Bob", "Charlie" }, result.Items.Select(x => x.Title));
+    }
+
+    [Fact]
+    public async Task Get_supports_pagination_with_page_and_pageSize()
+    {
+        await SeedAsync(
+            NewItem("Task 1", TaskState.Todo, new DateTime(2026, 8, 1, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 2", TaskState.Todo, new DateTime(2026, 8, 2, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 3", TaskState.Todo, new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 4", TaskState.Todo, new DateTime(2026, 8, 4, 0, 0, 0, DateTimeKind.Utc)),
+            NewItem("Task 5", TaskState.Todo, new DateTime(2026, 8, 5, 0, 0, 0, DateTimeKind.Utc)));
+
+        var client = factory.CreateClient();
+
+        var page1 = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?page=1&pageSize=2", JsonOptions);
+        Assert.NotNull(page1);
+        Assert.Equal(5, page1.TotalCount);
+        Assert.Equal(3, page1.TotalPages);
+        Assert.Equal(1, page1.Page);
+        Assert.Equal(2, page1.PageSize);
+        Assert.Equal(new[] { "Task 5", "Task 4" }, page1.Items.Select(x => x.Title));
+
+        var page2 = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?page=2&pageSize=2", JsonOptions);
+        Assert.NotNull(page2);
+        Assert.Equal(5, page2.TotalCount);
+        Assert.Equal(3, page2.TotalPages);
+        Assert.Equal(2, page2.Page);
+        Assert.Equal(2, page2.PageSize);
+        Assert.Equal(new[] { "Task 3", "Task 2" }, page2.Items.Select(x => x.Title));
+
+        var page3 = await client.GetFromJsonAsync<PagedResult<TaskResponse>>("/api/tasks?page=3&pageSize=2", JsonOptions);
+        Assert.NotNull(page3);
+        Assert.Equal(5, page3.TotalCount);
+        Assert.Equal(3, page3.TotalPages);
+        Assert.Equal(3, page3.Page);
+        Assert.Equal(2, page3.PageSize);
+        Assert.Equal(new[] { "Task 1" }, page3.Items.Select(x => x.Title));
+    }
+
+    [Theory]
+    [InlineData("page=0")]
+    [InlineData("page=-1")]
+    [InlineData("pageSize=0")]
+    [InlineData("pageSize=-1")]
+    [InlineData("pageSize=101")]
+    public async Task Get_rejects_invalid_pagination_parameters(string query)
+    {
+        var response = await factory.CreateClient().GetAsync($"/api/tasks?{query}");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     private async Task SeedAsync(params TaskItem[] items)

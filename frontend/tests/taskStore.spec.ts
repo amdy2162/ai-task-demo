@@ -46,14 +46,16 @@ describe('taskStore', () => {
     expect(store.tasks).toEqual([sample])
   })
 
-  it('refreshes the active filter after a status update', async () => {
+  it('updates task status optimistically in-place', async () => {
     vi.mocked(taskApi.updateTaskStatus).mockResolvedValue({ ...sample, status: 'Done' })
-    vi.mocked(taskApi.getTasks).mockResolvedValue(emptyPaged)
     const store = useTaskStore()
-    store.tasks = [sample]
+    store.tasks = [{ ...sample, status: 'Todo' }]
     store.selectedStatus = 'Todo'
+
     await store.changeStatus(1, 'Done')
-    expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 })
+
+    expect(taskApi.updateTaskStatus).toHaveBeenCalledWith(1, 'Done')
+    // When filtered by Todo and updated to Done, it is removed from active filtered view
     expect(store.tasks).toEqual([])
   })
 
@@ -110,17 +112,14 @@ describe('taskStore', () => {
     expect(store.error).toBe('Unable to update task status.')
   })
 
-  it('deletes a task then reloads the active filter', async () => {
+  it('deletes a task optimistically and removes it from store', async () => {
     vi.mocked(taskApi.deleteTask).mockResolvedValue()
-    vi.mocked(taskApi.getTasks).mockResolvedValue(emptyPaged)
     const store = useTaskStore()
     store.tasks = [sample]
-    store.selectedStatus = 'Todo'
 
     await store.removeTask(1)
 
     expect(taskApi.deleteTask).toHaveBeenCalledWith(1)
-    expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 })
     expect(store.tasks).toEqual([])
   })
 

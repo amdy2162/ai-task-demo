@@ -75,7 +75,7 @@ function handleDeleteTask(id: number): void {
       />
 
       <TaskNotification :error="error" />
-      <p v-if="isLoading" class="state">Loading tasks...</p>
+      <p v-if="isLoading && tasks.length === 0" class="state">Loading tasks...</p>
       <p v-else-if="tasks.length === 0" class="state">No tasks found.</p>
       <template v-else>
         <TaskList
