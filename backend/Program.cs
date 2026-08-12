@@ -1,5 +1,6 @@
 using AiTaskDemo.Api.Data;
 using AiTaskDemo.Api.Hubs;
+using AiTaskDemo.Api.Middleware;
 using AiTaskDemo.Api.Models;
 using AiTaskDemo.Api.Services;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +31,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors("Frontend");
 app.UseAuthorization();
 app.MapControllers();
