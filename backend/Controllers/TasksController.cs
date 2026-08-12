@@ -74,6 +74,15 @@ public sealed class TasksController(TaskService service) : ControllerBase
         return item is null ? NotFound() : Ok(ToResponse(item));
     }
 
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var deleted = await service.DeleteAsync(id, cancellationToken);
+        return deleted ? NoContent() : NotFound();
+    }
+
     private static TaskResponse ToResponse(TaskItem item) =>
         new(item.Id, item.Title, item.Description, item.Status, item.CreatedAt);
 }
