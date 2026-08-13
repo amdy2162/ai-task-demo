@@ -5,6 +5,7 @@ export interface SignalRService {
   stop(): Promise<void>
   isConnected(): boolean
   onTaskEvent(callback: () => void): void
+  reconnect(): Promise<void>
 }
 
 export function createSignalRService(
@@ -16,7 +17,9 @@ export function createSignalRService(
   function getConnection(): HubConnection {
     if (!connection) {
       connection = new HubConnectionBuilder()
-        .withUrl(hubUrl)
+        .withUrl(hubUrl, {
+          accessTokenFactory: () => localStorage.getItem('auth_token') || '',
+        })
         .withAutomaticReconnect([0, 2000, 5000, 10000])
         .configureLogging(LogLevel.Warning)
         .build()
@@ -43,12 +46,17 @@ export function createSignalRService(
       if (connection && connection.state !== HubConnectionState.Disconnected) {
         await connection.stop()
       }
+      connection = null
     },
     isConnected(): boolean {
       return connection?.state === HubConnectionState.Connected
     },
     onTaskEvent(callback: () => void): void {
       listeners.push(callback)
+    },
+    async reconnect(): Promise<void> {
+      await this.stop()
+      await this.start()
     },
   }
 }
