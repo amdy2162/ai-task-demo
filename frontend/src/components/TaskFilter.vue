@@ -53,49 +53,11 @@ function toggleSortOrder(): void {
 
 <template>
   <div class="toolbar">
-    <div class="toolbar-info">
-      <h2 id="tasks-heading">Tasks</h2>
-      <p>Use the controls below to search, sort, and organize your tasks.</p>
-    </div>
-    <div class="toolbar-controls">
-      <div class="control-group">
-        <label class="control-label search-control">
-          Search
-          <input
-            v-model="localSearch"
-            type="text"
-            data-test="search-input"
-            placeholder="Search by title..."
-          />
-        </label>
-
-        <label class="control-label">
-          Sort By
-          <select :value="sortBy" data-test="sort-by" @change="onSortByChange">
-            <option value="createdAt">Created Date</option>
-            <option value="title">Title</option>
-          </select>
-        </label>
-
-        <button
-          type="button"
-          class="btn-sort-order"
-          data-test="toggle-sort-order"
-          :title="sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'"
-          @click="toggleSortOrder"
-        >
-          {{ sortOrder === 'asc' ? '▲' : '▼' }}
-        </button>
-
-        <label class="control-label filter">
-          Filter
-          <select :value="selectedStatus" data-test="filter" @change="onFilterChange">
-            <option value="All">All</option>
-            <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
-          </select>
-        </label>
+    <div class="toolbar-header">
+      <div class="toolbar-info">
+        <h2 id="tasks-heading">Tasks</h2>
+        <p>Use the controls below to search, sort, and organize your tasks.</p>
       </div>
-
       <div class="view-switch" role="group" aria-label="View switch">
         <button
           type="button"
@@ -117,104 +79,225 @@ function toggleSortOrder(): void {
         </button>
       </div>
     </div>
+
+    <div class="toolbar-controls">
+      <div class="search-box">
+        <svg class="icon-search" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" />
+        </svg>
+        <input
+          v-model="localSearch"
+          type="text"
+          class="input-search"
+          data-test="search-input"
+          placeholder="Search tasks by title..."
+        />
+      </div>
+
+      <div class="filters-group">
+        <select :value="selectedStatus" class="select-filter" data-test="filter" @change="onFilterChange" aria-label="Filter status">
+          <option value="All">All Statuses</option>
+          <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
+        </select>
+
+        <div class="sort-group">
+          <select :value="sortBy" class="select-sort" data-test="sort-by" @change="onSortByChange" aria-label="Sort by">
+            <option value="createdAt">Date Created</option>
+            <option value="title">Title</option>
+          </select>
+          <button
+            type="button"
+            class="btn-sort-order"
+            data-test="toggle-sort-order"
+            :title="sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'"
+            @click="toggleSortOrder"
+          >
+            {{ sortOrder === 'asc' ? '▲' : '▼' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .toolbar {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 16px;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
 }
+
+.toolbar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
 .toolbar-info h2 {
   margin: 0;
-  font-size: 1.35rem;
-  color: #172033;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
 }
+
 .toolbar-info p {
   margin: 4px 0 0;
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
 }
-.toolbar-controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
+
 .view-switch {
   display: flex;
-  background: #e2e8f0;
+  background: #f1f5f9;
   border-radius: 8px;
-  padding: 2px;
+  padding: 4px;
+  border: 1px solid #e2e8f0;
 }
+
 .btn-view {
-  padding: 7px 14px;
+  padding: 6px 16px;
   border: none;
   background: transparent;
-  color: #475569;
+  color: #64748b;
   font-size: 0.85rem;
   font-weight: 600;
   border-radius: 6px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
+
+.btn-view:hover {
+  color: #334155;
+}
+
 .btn-view.active {
   background: #ffffff;
-  color: #1e293b;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-.control-group {
+
+.toolbar-controls {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
-.control-label {
-  display: grid;
-  gap: 4px;
-  font-size: 0.85rem;
-  font-weight: 650;
-  color: #475569;
+
+.search-box {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  max-width: 400px;
 }
-.search-control {
-  min-width: 180px;
+
+.icon-search {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: #94a3b8;
 }
-input[type="text"], select {
-  padding: 8px 10px;
-  border: 1px solid #bfc8d9;
-  border-radius: 7px;
-  background: #fff;
+
+.input-search {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
   font: inherit;
-  color: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-size: 0.9rem;
+  color: #1e293b;
+  transition: all 0.2s ease;
 }
-input[type="text"]:focus, select:focus {
+
+.input-search:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
-.btn-sort-order {
+
+.input-search::placeholder {
+  color: #94a3b8;
+}
+
+.filters-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.select-filter,
+.select-sort {
   padding: 8px 12px;
-  border: 1px solid #bfc8d9;
-  border-radius: 7px;
-  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select-filter:focus,
+.select-sort:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.sort-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-sort-order {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
   color: #475569;
   cursor: pointer;
-  font-weight: 600;
-  transition: all 0.15s ease;
+  font-weight: bold;
+  font-size: 1.1rem;
+  transition: all 0.2s ease;
 }
+
 .btn-sort-order:hover {
   background: #f1f5f9;
-  border-color: #cbd5e1;
+  color: #0f172a;
+  border-color: #94a3b8;
 }
+
 @media (max-width: 768px) {
-  .toolbar { flex-direction: column; align-items: stretch; }
-  .toolbar-controls { flex-direction: column; width: 100%; align-items: stretch; }
-  .control-group { width: 100%; flex-direction: column; align-items: stretch; }
-  .search-control, .control-label, .btn-sort-order { width: 100%; }
-  .view-switch { width: 100%; }
-  .btn-view { flex: 1; text-align: center; }
+  .toolbar-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .search-box {
+    max-width: 100%;
+  }
+  .filters-group {
+    justify-content: space-between;
+  }
 }
 </style>
