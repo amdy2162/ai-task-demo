@@ -56,6 +56,7 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 - 確認任務管理系統需要支援查詢、新增、狀態修改與狀態篩選。
 - 定義 Task 欄位：`id`、`title`、`description`、`status`、`createdAt`。
 - 定義驗證規則：`title` 必填、最多 100 字、`status` 只能是 `Todo`、`Doing`、`Done`。
+- 定義使用者身分驗證與多用戶任務隔離規則（包含密碼強度至少 6 字元、用戶名唯一性、SignalR 定向推播）。
 - 將開發流程拆成後端、前端、測試與文件階段。
 
 ## 全端工程師角色設定
@@ -101,10 +102,13 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 - 建立 `/api/tasks/{id}/status` 狀態修改 API。
 - 建立 `/api/tasks/{id}` 刪除任務 API。
 - 建立 `GlobalExceptionMiddleware` 統一傳回 RFC 7807 `application/problem+json` 格式錯誤回應。
-- 建立 `TaskHub` (`/hubs/tasks`) 並於 Controller 新增、編輯/修改狀態、刪除異動時廣播 SignalR 事件。
 - 建立 SQLite 資料儲存與 EF Core DbContext。
+- 實作 JWT Token 簽署服務 (`JwtTokenService`) 與密碼雜湊驗證服務 (`AuthService`)。
+- 建立註冊、登入與查詢當前登入者 API 端點 (`POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`)。
+- 為所有任務 API 與 SignalR Hub 配置 `[Authorize]` 防護，並修改資料儲存邏輯綁定 `UserId` 外鍵，實作多用戶隔離。
+- 建立 `TaskHub` (`/hubs/tasks`)，並限制 SignalR 即時推播僅傳送至任務擁有者 (`Clients.User(userId)`)，而非全體廣播。
 - 確認前端 `taskApi.ts` 與後端 API 路徑一致。
-- 驗證 API 回傳格式符合前端 `Task` 型別。
+- 驗證 API 回傳格式符合前端 `Task` 及 `Auth` 型別。
 
 ## 前端工程師角色設定
 
@@ -144,12 +148,14 @@ PM 負責把使用者需求整理成可開發、可驗收的規格，避免工�
 
 ### 本專案中的前端工程師產出
 
-- 建立 `src/types/task.ts` 定義任務型別。
-- 建立 `src/api/taskApi.ts` 封裝 API 呼叫（包含刪除任務 API）。
-- 建立 `src/services/signalrService.ts` 封裝 SignalR 連線與事件訂閱。
-- 建立 `src/stores/taskStore.ts` 管理任務狀態與 SignalR 即時同步事件監聽。
-- 建立 `src/App.vue` 提供新增、查詢、篩選、修改狀態、刪除任務與即時連線狀態燈號（Live Sync）。
-- 加入前端測試驗證主要操作流程與即時連線服務。
+- 建立 `src/types/task.ts` 與 `src/types/auth.ts` 定義任務與驗證資料型別。
+- 建立 `src/api/taskApi.ts` 與 `src/api/authApi.ts` 封裝 API 呼叫與驗證串接。
+- 實作 Axios 請求攔截器自動帶入 `Authorization` Bearer 憑證，以及回應攔截器監聽 401 自動登出。
+- 建立 `src/services/signalrService.ts` 封裝 SignalR 連線（動態獲取 Token）與事件訂閱。
+- 建立 `src/stores/authStore.ts` 管理登入狀態、User 資訊並儲存於 LocalStorage；建立 `taskStore.ts` 管理任務狀態並配合登入狀態自動重啟即時連線。
+- 建立 `AuthModal.vue` 提供身分驗證視窗（支援登入/註冊分頁切換、欄位驗證、錯誤提示）。
+- 修改 `src/App.vue` 提供未登入引導卡片、首頁登入/註冊按鈕、登入歡迎資訊、登出機制與即時連線狀態燈號（Live Sync）。
+- 加入前端測試驗證主要操作流程、驗證狀態商店與即時連線服務。
 
 ## QA 角色設定
 
@@ -212,6 +218,14 @@ QA 負責從驗收標準與使用者操作角度檢查功能是否正確，而�
 | 多視窗新增 Task | 視窗 A 新增任務，視窗 B 無需重新整理即時出現該任務 |
 | 多視窗修改 Task 狀態 | 視窗 A 修改任務狀態，視窗 B 即時同步更新該任務狀態 |
 | 多視窗刪除 Task | 視窗 A 刪除任務，視窗 B 即時同步移除該任務 |
+| 使用者註冊成功 | `POST /api/auth/register` 傳回 201 Created 與包含 Token 的 `AuthResponse` |
+| 使用者註冊帳號重複 | `POST /api/auth/register` 傳回 409 Conflict，確保帳號唯一性 |
+| 使用者登入成功 | `POST /api/auth/login` 傳回 200 OK 與 Token，前端自動儲存並引導至主畫面 |
+| 使用者登入密碼錯誤 | `POST /api/auth/login` 傳回 401 Unauthorized |
+| 未登入存取受保護 API | 各個任務相關 API 傳回 401 Unauthorized，前端自動執行登出並引導回登入頁 |
+| 多用戶任務列表隔離 | 使用者 B 呼叫 `GET /api/tasks` 只能取得自己建立的任務，確認無法檢視使用者 A 的任務 |
+| 多用戶任務異動阻斷 | 使用者 B 企圖呼叫 `PUT` 或 `DELETE` 異動使用者 A 的任務時，後端阻斷並回傳 404 Not Found |
+| 即時通訊隔離 | 使用者 A 對任務進行新增/修改/刪除時，僅有使用者 A 連線的視窗會透過 SignalR 收到即時更新廣播，使用者 B 不會收到任何廣播 |
 
 ## 角色協作流程
 

@@ -54,7 +54,93 @@ Backend
 
 ## API & Hub
 
-GET /api/tasks
+所有任務相關的 API 與 Hub 連線皆需要附帶 Authorization 標頭：`Authorization: Bearer <token>`。
+
+### Auth API
+
+#### POST /api/auth/register
+- **作用**：使用者註冊帳號並自動取得登入憑證。
+- **Request Body** (`RegisterRequest`)：
+  ```json
+  {
+    "username": "UserA",
+    "password": "password123"
+  }
+  ```
+- **欄位驗證**：
+  - `username`：必填，長度 3 ~ 50 字元。
+  - `password`：必填，長度至少 6 字元。
+- **Success Response** (201 Created, `AuthResponse`)：
+  ```json
+  {
+    "token": "jwt-token-string",
+    "user": {
+      "id": 1,
+      "username": "UserA",
+      "createdAt": "2026-08-12T12:00:00Z"
+    }
+  }
+  ```
+- **Error Responses**：
+  - 400 Bad Request：欄位格式驗證失敗。
+  - 409 Conflict：使用者名稱已存在。回傳 ProblemDetails：
+    ```json
+    {
+      "status": 409,
+      "title": "Username already exists",
+      "detail": "The username 'UserA' is already taken."
+    }
+    ```
+
+#### POST /api/auth/login
+- **作用**：使用者憑帳號密碼登入並取得憑證。
+- **Request Body** (`LoginRequest`)：
+  ```json
+  {
+    "username": "UserA",
+    "password": "password123"
+  }
+  ```
+- **Success Response** (200 OK, `AuthResponse`)：
+  ```json
+  {
+    "token": "jwt-token-string",
+    "user": {
+      "id": 1,
+      "username": "UserA",
+      "createdAt": "2026-08-12T12:00:00Z"
+    }
+  }
+  ```
+- **Error Responses**：
+  - 400 Bad Request：欄位缺少或格式錯誤。
+  - 401 Unauthorized：帳密錯誤。回傳 ProblemDetails：
+    ```json
+    {
+      "status": 401,
+      "title": "Unauthorized",
+      "detail": "Invalid username or password."
+    }
+    ```
+
+#### GET /api/auth/me
+- **作用**：取得當前登入使用者的個人 Profile。
+- **Headers**：
+  - `Authorization: Bearer <token>`
+- **Success Response** (200 OK, `UserProfileResponse`)：
+  ```json
+  {
+    "id": 1,
+    "username": "UserA",
+    "createdAt": "2026-08-12T12:00:00Z"
+  }
+  ```
+- **Error Responses**：
+  - 401 Unauthorized：缺少或無效的 Bearer Token。
+
+### Task API
+
+#### GET /api/tasks
 - Query 參數：
   - `status`: `Todo` / `Doing` / `Done` (依狀態篩選)
   - `search`: 關鍵字模糊搜尋 (比對 `title` 與 `description`)
@@ -81,23 +167,26 @@ GET /api/tasks
 }
 ```
 
-POST /api/tasks
-
-PUT /api/tasks/{id}
+#### POST /api/tasks
 - Request Body: `{ "title": "...", "description": "...", "status": "..." }`
 
-PATCH /api/tasks/{id}/status
+#### PUT /api/tasks/{id}
+- Request Body: `{ "title": "...", "description": "...", "status": "..." }`
 
-DELETE /api/tasks/{id}
+#### PATCH /api/tasks/{id}/status
+- Request Body: `{ "status": "..." }`
+
+#### DELETE /api/tasks/{id}
 
 ### SignalR Hub
 
 端點：`/hubs/tasks`
+（連線時需在 Query String 中傳入 `access_token` 連線憑證）
 
 廣播事件：
-- `TaskCreated`：新增任務時廣播
-- `TaskUpdated`：修改任務狀態或編輯任務時廣播
-- `TaskDeleted`：刪除任務時廣播
+- `TaskCreated`：新增任務時，僅廣播給該任務的建立者。
+- `TaskUpdated`：修改/編輯任務時，僅廣播給該任務的擁有者。
+- `TaskDeleted`：刪除任務時，僅廣播給該任務的擁有者。
 
 ## Global Exception Handling (RFC 7807)
 
@@ -114,6 +203,7 @@ DELETE /api/tasks/{id}
 
 ## Acceptance Criteria
 
+### 基礎任務管理
 - 可以新增 Task
 - 可以查詢 Task
 - 可以修改 Task 狀態
@@ -131,6 +221,17 @@ DELETE /api/tasks/{id}
 - 具備 EF Core Migrations 資料庫版本遷移機制，應用程式啟動時自動執行遷移
 - 具備 Playwright E2E 自動化測試模擬真實使用者操作（新增/驗證/看板/刪除）
 - 具備 GitHub Actions CI/CD Pipeline 在每次 Push/PR 自動執行前後端全套測試與建置檢查
+
+### 身分驗證與資料隔離 (JWT Authentication & Multi-User Isolation)
+- **使用者驗證 (User Authentication)**：
+  - 提供註冊功能，密碼經安全雜湊 (Hashing) 後儲存於資料庫，防止重複註冊。
+  - 提供登入功能，驗證帳密成功後發行經 HMAC-SHA256 簽署的 JWT Token。
+  - JWT Token 包含 `ClaimTypes.NameIdentifier` 作為使用者識別，以及 `ClaimTypes.Name` 作為使用者名稱。
+  - 未登入時限制所有 API 存取 (回傳 401 Unauthorized) 且前端顯示登入引導畫面；登入後解鎖全部功能。
+- **多用戶資料隔離 (Multi-User Task Isolation)**：
+  - 每個 Task 綁定 `UserId`，任何使用者僅能看見、新增、修改與刪除自己建立的任務。
+  - 跨用戶編輯或刪除他人任務時，後端應阻斷並回傳 404 Not Found。
+  - SignalR 即時推播限制僅推送給該任務的擁有者 (`Clients.User(userId.ToString())`)，防止其他使用者收到非其擁有的任務異動事件。
 
 ## 後續補充
 
