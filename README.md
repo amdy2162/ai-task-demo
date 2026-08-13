@@ -277,3 +277,83 @@ ai-task-demo/
 - `README.md`：專案啟動、測試與使用說明
 - `SPEC.md`：需求規格與驗收規則
 - `ROLES.md`：AI Coding Agent 角色設定與分工說明
+
+---
+
+## 架構決策與 Trade-off 說明
+
+### 為什麼選 SQLite 而非 PostgreSQL？
+
+**決策**：採用 SQLite 作為開發與 Demo 環境的資料庫。
+
+| | SQLite | PostgreSQL |
+|---|---|---|
+| 部署複雜度 | ✅ 零依賴，隨 App 啟動 | ❌ 需獨立服務、連線設定 |
+| Docker 設定 | ✅ 不需額外 container | ❌ 需 `db` service + health check |
+| 水平擴展 | ❌ 不支援多實例寫入 | ✅ 支援 Connection Pooling、Replica |
+| 生產適用性 | ❌ 單一檔案，不適合高並發 | ✅ 適合生產環境 |
+
+**結論**：SQLite 非常適合 Demo 與開發環境，讓任何人 clone 後立即可跑。EF Core Migrations 的設計讓日後切換至 PostgreSQL 只需更換 Provider 與 Connection String，無需改動業務邏輯。
+
+---
+
+### 為什麼選 SignalR 而非 WebSocket 或 SSE？
+
+**決策**：採用 ASP.NET Core SignalR 處理即時推播。
+
+| | SignalR | 原生 WebSocket | Server-Sent Events (SSE) |
+|---|---|---|---|
+| 雙向通訊 | ✅ | ✅ | ❌ 單向（Server→Client）|
+| 自動降級 | ✅ WebSocket → SSE → Long Polling | ❌ | ❌ |
+| 使用者群組管理 | ✅ 內建 `Clients.User()` | ❌ 需自行管理 | ❌ 需自行管理 |
+| 與 .NET 整合 | ✅ 原生支援 + JWT | ❌ 需手動解析 | ❌ 需手動解析 |
+
+**結論**：SignalR 提供開箱即用的使用者群組隔離（`Clients.User(userId)`）與自動傳輸降級，大幅降低開發複雜度，且與 .NET 的 JWT 認證系統無縫整合。
+
+---
+
+### 為什麼前端採用 Pinia 而非 Vuex？
+
+**決策**：採用 Pinia 作為前端狀態管理。
+
+- Pinia 是 Vue 3 官方推薦的狀態管理方案，天生支援 Composition API 與 TypeScript。
+- 相較 Vuex 4，Pinia 無需 `mutations`，Store 結構更扁平、測試更容易（直接操作 `store.property`）。
+- Vitest 整合方便，可用 `setActivePinia(createPinia())` 快速初始化測試環境。
+
+---
+
+### 樂觀更新（Optimistic Update）的設計決策
+
+**決策**：編輯任務時採用樂觀更新策略，並在失敗時自動回滾。
+
+**流程**：
+1. 使用者送出編輯 → 前端立即更新 UI（不等待 API 回應）
+2. 非同步呼叫 `PUT /api/tasks/{id}`
+3. ✅ 成功：保持 UI 狀態，SignalR 廣播確認
+4. ❌ 失敗：自動回滾至原始資料，顯示錯誤通知
+
+**Trade-off**：在網路延遲高的情況下改善使用者體驗；代價是需要在 Store 中暫存原始資料，並處理競態條件（Race Condition）。
+
+---
+
+## 已知限制與未來擴展方向
+
+### 目前的限制
+
+| 限制 | 說明 |
+|---|---|
+| **SignalR 無法水平擴展** | 目前採用 In-Memory 連線管理，部署多台 Server 時無法共享連線狀態。需引入 **Redis Backplane** (`AddStackExchangeRedis`) 才能支援 Scale-out。 |
+| **SQLite 單點寫入** | SQLite 的 WAL 模式雖支援並發讀取，但高並發寫入仍有效能瓶頸，生產環境建議替換為 PostgreSQL。 |
+| **JWT 無吊銷機制** | 目前 JWT Token 一旦發行，在有效期內無法強制失效（如使用者登出後 Token 仍有效）。可用 Redis 實作 Token Blacklist 解決。 |
+| **無 Rate Limiting** | API 目前無請求頻率限制，可能遭受暴力破解或 DDoS。可用 ASP.NET Core 的 `AddRateLimiter` 加入保護。 |
+| **無結構化日誌** | 目前使用預設的 `ILogger`，生產環境建議整合 **Serilog** 輸出 JSON 結構化日誌，配合 ELK Stack 或 Azure Application Insights 做可觀測性。 |
+| **密碼無複雜度驗證** | 目前只驗證長度 ≥ 6，生產環境應加入複雜度規則（大小寫、數字、特殊字元）。 |
+
+### 如果要上生產環境，會加入
+
+1. **PostgreSQL + Redis**：替換資料庫、啟用 SignalR Scale-out
+2. **Serilog + OpenTelemetry**：結構化日誌 + Distributed Tracing
+3. **Rate Limiting + CORS 嚴格設定**：API 安全加固
+4. **Refresh Token 機制**：解決 JWT 短效與長效 Token 的平衡問題
+5. **HTTPS + 環境變數管理**：透過 Azure Key Vault 或 `.env` 管理 Secret
+6. **前端 Bundle 分析 + CDN**：Vite 的 `rollup-plugin-visualizer` + 靜態資源 CDN 加速
