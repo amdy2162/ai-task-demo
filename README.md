@@ -2,6 +2,12 @@
 
 一個簡單的任務管理系統，用來展示 AI Coding Agent 如何協助需求分析、程式生成、Code Review 與測試。
 
+## 畫面截圖
+
+| 登入引導頁 | 看板視圖（Kanban） | 清單視圖（List） |
+|:---:|:---:|:---:|
+| ![登入引導頁](docs/screenshots/01-login.png) | ![看板視圖](docs/screenshots/02-kanban.png) | ![清單視圖](docs/screenshots/03-list.png) |
+
 ## Tech Stack
 
 ### Frontend
