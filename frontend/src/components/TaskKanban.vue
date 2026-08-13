@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { TaskItem, TaskStatus } from '../types/task'
 
 const props = defineProps<{
@@ -8,6 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'statusChange', id: number, status: TaskStatus): void
+  (e: 'edit', id: number, title: string, description: string): void
   (e: 'delete', id: number): void
 }>()
 
@@ -26,6 +27,36 @@ const groupedTasks = computed(() => {
   }
   return groups
 })
+
+const editingTaskId = ref<number | null>(null)
+const editTitle = ref('')
+const editDesc = ref('')
+const validationError = ref('')
+
+function startEdit(task: TaskItem): void {
+  editingTaskId.value = task.id
+  editTitle.value = task.title
+  editDesc.value = task.description
+  validationError.value = ''
+}
+
+function cancelEdit(): void {
+  editingTaskId.value = null
+}
+
+function saveEdit(task: TaskItem): void {
+  const titleTrimmed = editTitle.value.trim()
+  if (!titleTrimmed) {
+    validationError.value = 'Title is required.'
+    return
+  }
+  if (titleTrimmed.length > 100) {
+    validationError.value = 'Title is too long.'
+    return
+  }
+  emit('edit', task.id, titleTrimmed, editDesc.value.trim())
+  editingTaskId.value = null
+}
 </script>
 
 <template>
@@ -49,33 +80,67 @@ const groupedTasks = computed(() => {
           v-for="task in groupedTasks[col.status]"
           :key="task.id"
           class="card kanban-card"
+          :class="{ editing: editingTaskId === task.id }"
         >
-          <div class="card-top">
-            <h4 class="card-title">{{ task.title }}</h4>
-            <button
-              type="button"
-              class="btn-icon-delete"
-              :data-test="`delete-task-${task.id}`"
-              title="Delete task"
-              aria-label="Delete task"
-              @click="emit('delete', task.id)"
-            >
-              ✕
-            </button>
+          <div v-if="editingTaskId === task.id" class="edit-fields">
+            <input
+              v-model="editTitle"
+              class="edit-input-title"
+              data-test="edit-title"
+              placeholder="Task title"
+              maxlength="101"
+            />
+            <textarea
+              v-model="editDesc"
+              class="edit-input-desc"
+              data-test="edit-description"
+              placeholder="Task description"
+              rows="2"
+            />
+            <p v-if="validationError" class="edit-error" role="alert">{{ validationError }}</p>
+            <div class="edit-actions">
+              <button type="button" class="btn-save" data-test="save-edit" @click="saveEdit(task)">Save</button>
+              <button type="button" class="btn-cancel" data-test="cancel-edit" @click="cancelEdit">Cancel</button>
+            </div>
           </div>
-          <p v-if="task.description" class="card-desc">{{ task.description }}</p>
-          <div class="card-footer">
-            <small :data-test="`created-at-${task.id}`">{{ new Date(task.createdAt).toLocaleDateString() }}</small>
-            <select
-              :value="task.status"
-              :data-test="`task-status-${task.id}`"
-              class="mini-status-select"
-              @change="emit('statusChange', task.id, ($event.target as HTMLSelectElement).value as TaskStatus)"
-            >
-              <option value="Todo">Todo</option>
-              <option value="Doing">Doing</option>
-              <option value="Done">Done</option>
-            </select>
+          <div v-else>
+            <div class="card-top">
+              <h4 class="card-title" data-test="task-title">{{ task.title }}</h4>
+              <button
+                type="button"
+                class="btn-icon-delete"
+                :data-test="`delete-task-${task.id}`"
+                title="Delete task"
+                aria-label="Delete task"
+                @click="emit('delete', task.id)"
+              >
+                ✕
+              </button>
+            </div>
+            <p class="card-desc" data-test="task-description">{{ task.description || 'No description' }}</p>
+            <div class="card-footer">
+              <small :data-test="`created-at-${task.id}`">{{ new Date(task.createdAt).toLocaleDateString() }}</small>
+              <div class="card-footer-actions">
+                <button
+                  type="button"
+                  class="btn-edit-kanban"
+                  :data-test="`edit-task-btn-${task.id}`"
+                  @click="startEdit(task)"
+                >
+                  Edit
+                </button>
+                <select
+                  :value="task.status"
+                  :data-test="`task-status-${task.id}`"
+                  class="mini-status-select"
+                  @change="emit('statusChange', task.id, ($event.target as HTMLSelectElement).value as TaskStatus)"
+                >
+                  <option value="Todo">Todo</option>
+                  <option value="Doing">Doing</option>
+                  <option value="Done">Done</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
       </TransitionGroup>
@@ -184,6 +249,83 @@ const groupedTasks = computed(() => {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
+}
+.card-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-edit-kanban {
+  padding: 4px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.btn-edit-kanban:hover {
+  background: #e2e8f0;
+}
+.edit-fields {
+  display: grid;
+  gap: 8px;
+}
+.edit-input-title {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.edit-input-desc {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  resize: vertical;
+}
+.edit-error {
+  color: #b91c1c;
+  font-weight: 600;
+  font-size: 0.78rem;
+  margin: 0;
+}
+.edit-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn-save {
+  padding: 6px 12px;
+  border: 1px solid #3b82f6;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.btn-save:hover {
+  background: #2563eb;
+}
+.btn-cancel {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #64748b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+.btn-cancel:hover {
+  background: #f8fafc;
 }
 @media (max-width: 768px) {
   .kanban-board {

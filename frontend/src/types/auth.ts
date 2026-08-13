@@ -5,8 +5,7 @@ export interface UserInfo {
 
 export interface AuthResponse {
   token: string
-  userId: number
-  username: string
+  user: UserProfile
 }
 
 export interface UserProfile {

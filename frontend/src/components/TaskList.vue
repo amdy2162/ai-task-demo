@@ -8,6 +8,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'statusChange', id: number, status: TaskStatus): void
+  (e: 'edit', id: number, title: string, description: string): void
   (e: 'delete', id: number): void
 }>()
 </script>
@@ -19,6 +20,7 @@ const emit = defineEmits<{
       :key="task.id"
       :task="task"
       @status-change="(id, status) => emit('statusChange', id, status)"
+      @edit="(id, title, desc) => emit('edit', id, title, desc)"
       @delete="id => emit('delete', id)"
     />
   </TransitionGroup>

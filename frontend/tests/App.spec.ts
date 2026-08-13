@@ -127,7 +127,7 @@ describe('App', () => {
 
     await wrapper.get('[data-test="filter"]').setValue('Doing')
 
-    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Doing', page: 1, pageSize: 20 }))
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith(expect.objectContaining({ status: 'Doing' })))
   })
 
   it('shows loading and then the empty state', async () => {
@@ -158,11 +158,11 @@ describe('App', () => {
     expect(wrapper.get('[data-test="created-at-7"]').text()).not.toBe('')
 
     await wrapper.get('[data-test="filter"]').setValue('Todo')
-    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 }))
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith(expect.objectContaining({ status: 'Todo' })))
     await wrapper.get('[data-test="task-status-7"]').setValue('Doing')
 
     await vi.waitFor(() => expect(taskApi.updateTaskStatus).toHaveBeenCalledWith(7, 'Doing'))
-    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenLastCalledWith({ status: 'Todo', page: 1, pageSize: 20 }))
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'Todo' })))
   })
 
   it('shows API errors from loading, creation, and status updates', async () => {
@@ -221,5 +221,39 @@ describe('App', () => {
     await wrapper.get('[data-test="delete-task-10"]').trigger('click')
 
     await vi.waitFor(() => expect(wrapper.text()).toContain('Unable to delete task.'))
+  })
+
+  it('renders pagination controls and navigates pages', async () => {
+    const items = Array.from({ length: 5 }, (_, i) => ({
+      id: i + 1,
+      title: `Task ${i + 1}`,
+      description: '',
+      status: 'Todo' as const,
+      createdAt: '2026-08-10T00:00:00Z',
+    }))
+    
+    vi.mocked(taskApi.getTasks).mockResolvedValue({
+      items,
+      totalCount: 25,
+      page: 1,
+      pageSize: 5,
+      totalPages: 5,
+    })
+
+    const wrapper = mountApp()
+
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Task 1'))
+    
+    // Check pagination summary info
+    expect(wrapper.get('[data-test="pagination-info"]').text()).toContain('Page 1 of 5 (Total 25 tasks)')
+    
+    // Previous page button should be disabled, Next should be enabled
+    expect((wrapper.get('[data-test="prev-page-btn"]').element as HTMLButtonElement).disabled).toBe(true)
+    expect((wrapper.get('[data-test="next-page-btn"]').element as HTMLButtonElement).disabled).toBe(false)
+
+    // Click next page button
+    await wrapper.get('[data-test="next-page-btn"]').trigger('click')
+
+    await vi.waitFor(() => expect(taskApi.getTasks).toHaveBeenCalledWith(expect.objectContaining({ page: 2 })))
   })
 })

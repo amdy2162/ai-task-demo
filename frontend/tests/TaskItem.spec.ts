@@ -30,4 +30,20 @@ describe('TaskItem', () => {
     await wrapper.get('[data-test="delete-task-1"]').trigger('click')
     expect(wrapper.emitted('delete')?.[0]).toEqual([1])
   })
+
+  it('toggles edit mode and emits edit event on save', async () => {
+    const wrapper = mount(TaskItem, { props: { task: sample } })
+    
+    // Toggle edit mode
+    await wrapper.get('[data-test="edit-task-btn-1"]').trigger('click')
+    expect(wrapper.find('[data-test="edit-title"]').exists()).toBe(true)
+
+    // Edit content
+    await wrapper.get('[data-test="edit-title"]').setValue('Updated Title')
+    await wrapper.get('[data-test="edit-description"]').setValue('Updated Desc')
+    await wrapper.get('[data-test="save-edit"]').trigger('click')
+
+    expect(wrapper.emitted('edit')?.[0]).toEqual([1, 'Updated Title', 'Updated Desc'])
+    expect(wrapper.find('[data-test="edit-title"]').exists()).toBe(false)
+  })
 })

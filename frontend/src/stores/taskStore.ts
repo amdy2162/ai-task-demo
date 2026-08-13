@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { createTask, deleteTask, getTasks, updateTaskStatus } from '../api/taskApi'
+import { createTask, deleteTask, getTasks, updateTaskStatus, updateTask } from '../api/taskApi'
 import { signalRService } from '../services/signalrService'
 import type { CreateTaskRequest, TaskItem, TaskStatus } from '../types/task'
 
@@ -11,6 +11,9 @@ export const useTaskStore = defineStore('tasks', () => {
   const tasks = ref<TaskItem[]>([])
   const selectedStatus = ref<StatusFilter>('All')
   const viewMode = ref<ViewMode>('list')
+  const searchQuery = ref('')
+  const sortBy = ref('createdAt')
+  const sortOrder = ref<'asc' | 'desc'>('desc')
   const isLoading = ref(false)
   const error = ref('')
   const isRealtimeConnected = ref(false)
@@ -20,8 +23,10 @@ export const useTaskStore = defineStore('tasks', () => {
   const totalPages = ref(1)
   let latestFetch = 0
 
-  function setViewMode(mode: ViewMode): void {
+  async function setViewMode(mode: ViewMode): Promise<void> {
     viewMode.value = mode
+    page.value = 1
+    await fetchTasks()
   }
 
   async function fetchTasks(silent = false): Promise<void> {
@@ -33,8 +38,11 @@ export const useTaskStore = defineStore('tasks', () => {
     try {
       const data = await getTasks({
         status: selectedStatus.value === 'All' ? undefined : selectedStatus.value,
-        page: page.value,
-        pageSize: pageSize.value,
+        search: searchQuery.value || undefined,
+        sortBy: sortBy.value,
+        sortOrder: sortOrder.value,
+        page: viewMode.value === 'kanban' ? 1 : page.value,
+        pageSize: viewMode.value === 'kanban' ? 100 : pageSize.value,
       })
       if (fetchId === latestFetch) {
         if (data && Array.isArray(data.items)) {
@@ -61,6 +69,25 @@ export const useTaskStore = defineStore('tasks', () => {
 
   async function setStatusFilter(status: StatusFilter): Promise<void> {
     selectedStatus.value = status
+    page.value = 1
+    await fetchTasks()
+  }
+
+  async function setSearchQuery(query: string): Promise<void> {
+    searchQuery.value = query
+    page.value = 1
+    await fetchTasks()
+  }
+
+  async function setSort(by: string, order: 'asc' | 'desc'): Promise<void> {
+    sortBy.value = by
+    sortOrder.value = order
+    page.value = 1
+    await fetchTasks()
+  }
+
+  async function setPage(pageNum: number): Promise<void> {
+    page.value = pageNum
     await fetchTasks()
   }
 
@@ -134,6 +161,30 @@ export const useTaskStore = defineStore('tasks', () => {
     isRealtimeConnected.value = signalRService.isConnected()
   }
 
+  async function editTask(id: number, title: string, description: string): Promise<boolean> {
+    error.value = ''
+    const target = tasks.value.find(t => t.id === id)
+    if (!target) return false
+
+    const originalTitle = target.title
+    const originalDesc = target.description
+
+    // 樂觀更新：立刻在前端反映修改的標題與描述
+    target.title = title
+    target.description = description
+
+    try {
+      await updateTask(id, { title, description, status: target.status })
+      return true
+    } catch {
+      // 失敗時回滾
+      target.title = originalTitle
+      target.description = originalDesc
+      error.value = 'Unable to edit task.'
+      return false
+    }
+  }
+
   async function stopRealtime(): Promise<void> {
     await signalRService.stop()
     isRealtimeConnected.value = false
@@ -143,6 +194,9 @@ export const useTaskStore = defineStore('tasks', () => {
     tasks,
     selectedStatus,
     viewMode,
+    searchQuery,
+    sortBy,
+    sortOrder,
     isLoading,
     error,
     isRealtimeConnected,
@@ -152,9 +206,13 @@ export const useTaskStore = defineStore('tasks', () => {
     totalPages,
     fetchTasks,
     setStatusFilter,
+    setSearchQuery,
+    setSort,
+    setPage,
     setViewMode,
     addTask,
     changeStatus,
+    editTask,
     removeTask,
     startRealtime,
     stopRealtime,

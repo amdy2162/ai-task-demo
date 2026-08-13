@@ -29,7 +29,14 @@ describe('taskStore', () => {
     vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
     const store = useTaskStore()
     await store.setStatusFilter('Todo')
-    expect(taskApi.getTasks).toHaveBeenCalledWith({ status: 'Todo', page: 1, pageSize: 20 })
+    expect(taskApi.getTasks).toHaveBeenCalledWith({
+      status: 'Todo',
+      page: 1,
+      pageSize: 20,
+      search: undefined,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    })
     expect(store.tasks).toEqual([sample])
     expect(store.totalCount).toBe(1)
     expect(store.page).toBe(1)
@@ -132,12 +139,32 @@ describe('taskStore', () => {
     expect(store.error).toBe('Unable to delete task.')
   })
 
-  it('switches view mode between list and kanban', () => {
+  it('updates task content optimistically and handles api failures', async () => {
+    vi.mocked(taskApi.updateTask).mockResolvedValue({ ...sample, title: 'New Title', description: 'New Desc' })
+    const store = useTaskStore()
+    store.tasks = [sample]
+
+    const success = await store.editTask(1, 'New Title', 'New Desc')
+    expect(success).toBe(true)
+    expect(taskApi.updateTask).toHaveBeenCalledWith(1, { title: 'New Title', description: 'New Desc', status: 'Todo' })
+    expect(store.tasks[0].title).toBe('New Title')
+
+    // Mock API Failure
+    vi.mocked(taskApi.updateTask).mockRejectedValue(new Error('offline'))
+    const failed = await store.editTask(1, 'Failed Title', 'Failed Desc')
+    expect(failed).toBe(false)
+    expect(store.error).toBe('Unable to edit task.')
+    // Title is rolled back to 'New Title'
+    expect(store.tasks[0].title).toBe('New Title')
+  })
+
+  it('switches view mode between list and kanban', async () => {
+    vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
     const store = useTaskStore()
     expect(store.viewMode).toBe('list')
-    store.setViewMode('kanban')
+    await store.setViewMode('kanban')
     expect(store.viewMode).toBe('kanban')
-    store.setViewMode('list')
+    await store.setViewMode('list')
     expect(store.viewMode).toBe('list')
   })
 
@@ -163,6 +190,23 @@ describe('taskStore', () => {
 
     expect(signalRService.stop).toHaveBeenCalled()
     expect(store.isRealtimeConnected).toBe(false)
+  })
+
+  it('sets search query and triggers fetchTasks', async () => {
+    vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
+    const store = useTaskStore()
+    await store.setSearchQuery('Hello')
+    expect(store.searchQuery).toBe('Hello')
+    expect(taskApi.getTasks).toHaveBeenCalledWith(expect.objectContaining({ search: 'Hello' }))
+  })
+
+  it('sets sorting order and triggers fetchTasks', async () => {
+    vi.mocked(taskApi.getTasks).mockResolvedValue(pagedSample)
+    const store = useTaskStore()
+    await store.setSort('title', 'asc')
+    expect(store.sortBy).toBe('title')
+    expect(store.sortOrder).toBe('asc')
+    expect(taskApi.getTasks).toHaveBeenCalledWith(expect.objectContaining({ sortBy: 'title', sortOrder: 'asc' }))
   })
 })
 

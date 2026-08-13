@@ -61,6 +61,14 @@ export async function updateTaskStatus(id: number, status: TaskStatus): Promise<
   return response.data
 }
 
+export async function updateTask(
+  id: number,
+  request: { title: string; description: string; status: TaskStatus }
+): Promise<TaskItem> {
+  const response = await apiClient.put<TaskItem>(`/tasks/${id}`, request)
+  return response.data
+}
+
 export async function deleteTask(id: number): Promise<void> {
   await apiClient.delete(`/tasks/${id}`)
 }

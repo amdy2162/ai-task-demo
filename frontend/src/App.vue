@@ -12,7 +12,20 @@ import TaskNotification from './components/TaskNotification.vue'
 import AuthModal from './components/AuthModal.vue'
 
 const store = useTaskStore()
-const { tasks, selectedStatus, isLoading, error, viewMode, isRealtimeConnected } = storeToRefs(store)
+const {
+  tasks,
+  selectedStatus,
+  isLoading,
+  error,
+  viewMode,
+  isRealtimeConnected,
+  searchQuery,
+  sortBy,
+  sortOrder,
+  page,
+  totalPages,
+  totalCount,
+} = storeToRefs(store)
 
 const authStore = useAuthStore()
 const { user, isAuthenticated } = storeToRefs(authStore)
@@ -52,6 +65,22 @@ function handleStatusChange(id: number, status: TaskStatus): void {
 
 function handleDeleteTask(id: number): void {
   void store.removeTask(id)
+}
+
+function handleEditTask(id: number, title: string, description: string): void {
+  void store.editTask(id, title, description)
+}
+
+function handleSearchChange(search: string): void {
+  void store.setSearchQuery(search)
+}
+
+function handleSortChange(sortBy: string, sortOrder: 'asc' | 'desc'): void {
+  void store.setSort(sortBy, sortOrder)
+}
+
+function handlePageChange(pageNum: number): void {
+  void store.setPage(pageNum)
 }
 
 async function handleLoginSuccess(): Promise<void> {
@@ -110,8 +139,13 @@ async function handleLogout(): Promise<void> {
         <TaskFilter
           :selected-status="selectedStatus"
           :view-mode="viewMode"
+          :search-query="searchQuery"
+          :sort-by="sortBy"
+          :sort-order="sortOrder"
           @filter-change="handleFilterChange"
           @view-mode-change="handleViewModeChange"
+          @search-change="handleSearchChange"
+          @sort-change="handleSortChange"
         />
 
         <TaskNotification :error="error" />
@@ -122,14 +156,40 @@ async function handleLogout(): Promise<void> {
             v-if="viewMode === 'list'"
             :tasks="tasks"
             @status-change="handleStatusChange"
+            @edit="handleEditTask"
             @delete="handleDeleteTask"
           />
           <TaskKanban
             v-else
             :tasks="tasks"
             @status-change="handleStatusChange"
+            @edit="handleEditTask"
             @delete="handleDeleteTask"
           />
+
+          <div v-if="viewMode === 'list'" class="pagination-bar" data-test="pagination-bar">
+            <button
+              type="button"
+              class="btn-pagination-nav"
+              data-test="prev-page-btn"
+              :disabled="page === 1"
+              @click="handlePageChange(page - 1)"
+            >
+              ◀ Previous
+            </button>
+            <span class="pagination-info" data-test="pagination-info">
+              Page {{ page }} of {{ totalPages }} (Total {{ totalCount }} tasks)
+            </span>
+            <button
+              type="button"
+              class="btn-pagination-nav"
+              data-test="next-page-btn"
+              :disabled="page >= totalPages"
+              @click="handlePageChange(page + 1)"
+            >
+              Next ▶
+            </button>
+          </div>
         </template>
       </template>
     </section>
@@ -264,5 +324,46 @@ async function handleLogout(): Promise<void> {
   background: #2563eb;
 }
 
-@media (max-width: 560px) { .shell { margin-top: 28px; } }
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+  padding: 12px 16px;
+  border: 1px solid #dce1ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.02);
+}
+.btn-pagination-nav {
+  padding: 8px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-pagination-nav:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+.btn-pagination-nav:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pagination-info {
+  font-size: 0.88rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+@media (max-width: 560px) {
+  .shell { margin-top: 28px; }
+  .pagination-bar { flex-direction: column; gap: 12px; text-align: center; }
+  .btn-pagination-nav { width: 100%; }
+}
 </style>

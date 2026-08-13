@@ -73,8 +73,11 @@ test.describe('Task Management 任務管理系統 E2E 完整流程測試', () =>
         status: 201,
         json: {
           token: newUser.token,
-          userId: newUser.id,
-          username: newUser.username
+          user: {
+            id: newUser.id,
+            username: newUser.username,
+            createdAt: new Date().toISOString()
+          }
         }
       })
     })
@@ -102,8 +105,11 @@ test.describe('Task Management 任務管理系統 E2E 完整流程測試', () =>
         status: 200,
         json: {
           token: user.token,
-          userId: user.id,
-          username: user.username
+          user: {
+            id: user.id,
+            username: user.username,
+            createdAt: new Date().toISOString()
+          }
         }
       })
     })

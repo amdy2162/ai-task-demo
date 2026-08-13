@@ -45,7 +45,10 @@ describe('authStore', () => {
   })
 
   it('registers user and updates state and localStorage', async () => {
-    const response = { token: 'reg-token', userId: 42, username: 'newuser' }
+    const response = {
+      token: 'reg-token',
+      user: { id: 42, username: 'newuser', createdAt: '2026-08-10T00:00:00Z' },
+    }
     vi.mocked(authApi.register).mockResolvedValue(response)
 
     const store = useAuthStore()
@@ -60,7 +63,10 @@ describe('authStore', () => {
   })
 
   it('logins user and updates state and localStorage', async () => {
-    const response = { token: 'login-token', userId: 10, username: 'myuser' }
+    const response = {
+      token: 'login-token',
+      user: { id: 10, username: 'myuser', createdAt: '2026-08-10T00:00:00Z' },
+    }
     vi.mocked(authApi.login).mockResolvedValue(response)
 
     const store = useAuthStore()

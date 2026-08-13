@@ -16,7 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(username: string, password: string): Promise<void> {
     const res = await apiRegister(username, password)
     token.value = res.token
-    user.value = { id: res.userId, username: res.username }
+    user.value = { id: res.user.id, username: res.user.username }
     localStorage.setItem('auth_token', res.token)
     localStorage.setItem('auth_user', JSON.stringify(user.value))
   }
@@ -24,7 +24,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string): Promise<void> {
     const res = await apiLogin(username, password)
     token.value = res.token
-    user.value = { id: res.userId, username: res.username }
+    user.value = { id: res.user.id, username: res.user.username }
     localStorage.setItem('auth_token', res.token)
     localStorage.setItem('auth_user', JSON.stringify(user.value))
   }
