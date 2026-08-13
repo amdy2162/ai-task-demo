@@ -16,9 +16,10 @@ public sealed class TaskService(AppDbContext db)
         string? sortOrder,
         int page,
         int pageSize,
+        int userId,
         CancellationToken cancellationToken)
     {
-        var query = db.Tasks.AsNoTracking();
+        var query = db.Tasks.AsNoTracking().Where(item => item.UserId == userId);
 
         if (status is not null)
         {
@@ -56,6 +57,7 @@ public sealed class TaskService(AppDbContext db)
         string title,
         string? description,
         TaskState? status,
+        int userId,
         CancellationToken cancellationToken)
     {
         var item = new TaskItem
@@ -63,7 +65,8 @@ public sealed class TaskService(AppDbContext db)
             Title = title.Trim(),
             Description = description?.Trim() ?? string.Empty,
             Status = status ?? TaskState.Todo,
-            CreatedAt = DateTime.UtcNow.Add(TaipeiOffset)
+            CreatedAt = DateTime.UtcNow.Add(TaipeiOffset),
+            UserId = userId
         };
 
         db.Tasks.Add(item);
@@ -74,10 +77,11 @@ public sealed class TaskService(AppDbContext db)
     public async Task<TaskItem?> UpdateStatusAsync(
         int id,
         TaskState status,
+        int userId,
         CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null)
+        if (item is null || item.UserId != userId)
         {
             return null;
         }
@@ -91,26 +95,30 @@ public sealed class TaskService(AppDbContext db)
         int id,
         string title,
         string? description,
-        TaskState status,
+        TaskState? status,
+        int userId,
         CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null)
+        if (item is null || item.UserId != userId)
         {
             return null;
         }
 
         item.Title = title.Trim();
         item.Description = description?.Trim() ?? string.Empty;
-        item.Status = status;
+        if (status is not null)
+        {
+            item.Status = status.Value;
+        }
         await db.SaveChangesAsync(cancellationToken);
         return item;
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(int id, int userId, CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null)
+        if (item is null || item.UserId != userId)
         {
             return false;
         }

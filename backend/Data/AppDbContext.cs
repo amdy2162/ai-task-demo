@@ -15,6 +15,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         task.Property(x => x.Description).IsRequired();
         task.Property(x => x.Status).HasConversion<string>().IsRequired();
         task.Property(x => x.CreatedAt).IsRequired();
+        task.HasOne(t => t.User)
+            .WithMany(u => u.Tasks)
+            .HasForeignKey(t => t.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var user = modelBuilder.Entity<User>();
         user.HasIndex(u => u.Username).IsUnique();

@@ -14,4 +14,6 @@ public sealed class TaskItem
     public string Description { get; set; } = string.Empty;
     public TaskStatus Status { get; set; } = TaskStatus.Todo;
     public DateTime CreatedAt { get; set; }
+    public int UserId { get; set; }
+    public User? User { get; set; }
 }

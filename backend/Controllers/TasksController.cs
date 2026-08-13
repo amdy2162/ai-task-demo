@@ -2,16 +2,24 @@ using AiTaskDemo.Api.DTOs;
 using AiTaskDemo.Api.Hubs;
 using AiTaskDemo.Api.Models;
 using AiTaskDemo.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using TaskState = AiTaskDemo.Api.Models.TaskStatus;
 
 namespace AiTaskDemo.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/tasks")]
 public sealed class TasksController(TaskService service, IHubContext<TaskHub> hubContext) : ControllerBase
 {
+    private int GetCurrentUserId()
+    {
+        var nameId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.Parse(nameId ?? throw new InvalidOperationException("User ID claim not found."));
+    }
+
     [HttpGet]
     public async Task<ActionResult<PagedResult<TaskResponse>>> GetAll(
         [FromQuery] string? status,
@@ -45,7 +53,8 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
             taskStatus = parsedStatus;
         }
 
-        var (items, totalCount) = await service.GetPagedAsync(taskStatus, search, sortBy, sortOrder, page, pageSize, cancellationToken);
+        var userId = GetCurrentUserId();
+        var (items, totalCount) = await service.GetPagedAsync(taskStatus, search, sortBy, sortOrder, page, pageSize, userId, cancellationToken);
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         var responses = items.Select(ToResponse).ToList();
 
@@ -70,14 +79,16 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
             return ValidationProblem(ModelState);
         }
 
+        var userId = GetCurrentUserId();
         var item = await service.CreateAsync(
             request.Title,
             request.Description,
             request.Status,
+            userId,
             cancellationToken);
 
         var response = ToResponse(item);
-        await hubContext.Clients.All.SendAsync("TaskCreated", response, cancellationToken);
+        await hubContext.Clients.User(userId.ToString()).SendAsync("TaskCreated", response, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, response);
     }
 
@@ -99,11 +110,13 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
             return ValidationProblem(ModelState);
         }
 
+        var userId = GetCurrentUserId();
         var item = await service.UpdateAsync(
             id,
             request.Title,
             request.Description,
             request.Status.Value,
+            userId,
             cancellationToken);
 
         if (item is null)
@@ -112,7 +125,7 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         }
 
         var response = ToResponse(item);
-        await hubContext.Clients.All.SendAsync("TaskUpdated", response, cancellationToken);
+        await hubContext.Clients.User(userId.ToString()).SendAsync("TaskUpdated", response, cancellationToken);
         return Ok(response);
     }
 
@@ -128,14 +141,15 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
             return ValidationProblem(ModelState);
         }
 
-        var item = await service.UpdateStatusAsync(id, request.Status.Value, cancellationToken);
+        var userId = GetCurrentUserId();
+        var item = await service.UpdateStatusAsync(id, request.Status.Value, userId, cancellationToken);
         if (item is null)
         {
             return NotFound();
         }
 
         var response = ToResponse(item);
-        await hubContext.Clients.All.SendAsync("TaskUpdated", response, cancellationToken);
+        await hubContext.Clients.User(userId.ToString()).SendAsync("TaskUpdated", response, cancellationToken);
         return Ok(response);
     }
 
@@ -144,13 +158,14 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         int id,
         CancellationToken cancellationToken)
     {
-        var deleted = await service.DeleteAsync(id, cancellationToken);
+        var userId = GetCurrentUserId();
+        var deleted = await service.DeleteAsync(id, userId, cancellationToken);
         if (!deleted)
         {
             return NotFound();
         }
 
-        await hubContext.Clients.All.SendAsync("TaskDeleted", id, cancellationToken);
+        await hubContext.Clients.User(userId.ToString()).SendAsync("TaskDeleted", id, cancellationToken);
         return NoContent();
     }
 
