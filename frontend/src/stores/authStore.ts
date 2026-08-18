@@ -12,11 +12,12 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserInfo | null>(savedUser ? JSON.parse(savedUser) : null)
 
   const isAuthenticated = computed(() => !!token.value)
+  const canEdit = computed(() => user.value?.role === 'Admin' || user.value?.role === 'Editor')
 
   async function register(username: string, password: string): Promise<void> {
     const res = await apiRegister(username, password)
     token.value = res.token
-    user.value = { id: res.user.id, username: res.user.username }
+    user.value = { id: res.user.id, username: res.user.username, role: res.user.role }
     localStorage.setItem('auth_token', res.token)
     localStorage.setItem('auth_user', JSON.stringify(user.value))
   }
@@ -24,7 +25,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(username: string, password: string): Promise<void> {
     const res = await apiLogin(username, password)
     token.value = res.token
-    user.value = { id: res.user.id, username: res.user.username }
+    user.value = { id: res.user.id, username: res.user.username, role: res.user.role }
     localStorage.setItem('auth_token', res.token)
     localStorage.setItem('auth_user', JSON.stringify(user.value))
   }
@@ -44,7 +45,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function fetchMe(): Promise<void> {
     const profile = await apiFetchMe()
-    user.value = { id: profile.id, username: profile.username }
+    user.value = { id: profile.id, username: profile.username, role: profile.role }
     localStorage.setItem('auth_user', JSON.stringify(user.value))
   }
 
@@ -81,6 +82,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     user,
     isAuthenticated,
+    canEdit,
     register,
     login,
     logout,

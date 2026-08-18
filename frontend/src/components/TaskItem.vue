@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { TaskItem, TaskStatus } from '../types/task'
+import { useAuthStore } from '../stores/authStore'
 
 const props = defineProps<{
   task: TaskItem
@@ -11,6 +12,8 @@ const emit = defineEmits<{
   (e: 'edit', id: number, title: string, description: string): void
   (e: 'delete', id: number): void
 }>()
+
+const authStore = useAuthStore()
 
 const statuses: TaskStatus[] = ['Todo', 'Doing', 'Done']
 const isEditing = ref(false)
@@ -102,11 +105,12 @@ function saveEdit(): void {
       <template v-else>
         <label class="status-control">
           Status
-          <select :value="task.status" :data-test="`task-status-${task.id}`" @change="onStatusChange">
+          <select :value="task.status" :data-test="`task-status-${task.id}`" @change="onStatusChange" :disabled="!authStore.canEdit">
             <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
           </select>
         </label>
         <button
+          v-if="authStore.canEdit"
           type="button"
           class="btn-edit"
           :data-test="`edit-task-btn-${task.id}`"
@@ -115,6 +119,7 @@ function saveEdit(): void {
           Edit
         </button>
         <button
+          v-if="authStore.canEdit"
           type="button"
           class="btn-delete"
           :data-test="`delete-task-${task.id}`"

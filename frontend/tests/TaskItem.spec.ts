@@ -1,9 +1,17 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, beforeEach } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import TaskItem from '../src/components/TaskItem.vue'
 import type { TaskItem as TaskItemType } from '../src/types/task'
+import { useAuthStore } from '../src/stores/authStore'
 
 describe('TaskItem', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    const authStore = useAuthStore()
+    authStore.user = { id: 1, username: 'testuser', role: 'Admin' }
+  })
+
   const sample: TaskItemType = {
     id: 1,
     title: 'Test Title',
