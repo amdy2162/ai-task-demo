@@ -32,7 +32,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             user = new User
             {
                 Username = "testuser",
-                PasswordHash = "hashedpassword"
+                PasswordHash = "hashedpassword",
+                Role = UserRole.Editor
             };
             db.Users.Add(user);
             await db.SaveChangesAsync();
@@ -67,7 +68,8 @@ public sealed class TasksApiTests(CustomWebApplicationFactory factory)
             user = new User
             {
                 Username = username,
-                PasswordHash = "hashedpassword"
+                PasswordHash = "hashedpassword",
+                Role = UserRole.Editor
             };
             db.Users.Add(user);
             await db.SaveChangesAsync();

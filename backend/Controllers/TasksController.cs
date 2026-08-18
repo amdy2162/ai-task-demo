@@ -20,6 +20,11 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         return int.Parse(nameId ?? throw new InvalidOperationException("User ID claim not found."));
     }
 
+    private string GetCurrentUserRole()
+    {
+        return User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? string.Empty;
+    }
+
     [HttpGet]
     public async Task<ActionResult<PagedResult<TaskResponse>>> GetAll(
         [FromQuery] string? status,
@@ -54,7 +59,8 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         }
 
         var userId = GetCurrentUserId();
-        var (items, totalCount) = await service.GetPagedAsync(taskStatus, search, sortBy, sortOrder, page, pageSize, userId, cancellationToken);
+        var userRole = GetCurrentUserRole();
+        var (items, totalCount) = await service.GetPagedAsync(taskStatus, search, sortBy, sortOrder, page, pageSize, userId, userRole, cancellationToken);
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
         var responses = items.Select(ToResponse).ToList();
 
@@ -63,6 +69,7 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<TaskResponse>> Create(
         CreateTaskRequest request,
         CancellationToken cancellationToken)
@@ -93,6 +100,7 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<TaskResponse>> Update(
         int id,
         UpdateTaskRequest request,
@@ -111,12 +119,14 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         }
 
         var userId = GetCurrentUserId();
+        var userRole = GetCurrentUserRole();
         var item = await service.UpdateAsync(
             id,
             request.Title,
             request.Description,
             request.Status.Value,
             userId,
+            userRole,
             cancellationToken);
 
         if (item is null)
@@ -130,6 +140,7 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
     }
 
     [HttpPatch("{id:int}/status")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<ActionResult<TaskResponse>> UpdateStatus(
         int id,
         UpdateTaskStatusRequest request,
@@ -142,7 +153,8 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
         }
 
         var userId = GetCurrentUserId();
-        var item = await service.UpdateStatusAsync(id, request.Status.Value, userId, cancellationToken);
+        var userRole = GetCurrentUserRole();
+        var item = await service.UpdateStatusAsync(id, request.Status.Value, userId, userRole, cancellationToken);
         if (item is null)
         {
             return NotFound();
@@ -154,12 +166,14 @@ public sealed class TasksController(TaskService service, IHubContext<TaskHub> hu
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin,Editor")]
     public async Task<IActionResult> Delete(
         int id,
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var deleted = await service.DeleteAsync(id, userId, cancellationToken);
+        var userRole = GetCurrentUserRole();
+        var deleted = await service.DeleteAsync(id, userId, userRole, cancellationToken);
         if (!deleted)
         {
             return NotFound();
