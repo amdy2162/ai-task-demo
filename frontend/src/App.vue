@@ -122,7 +122,7 @@ async function handleLogout(): Promise<void> {
       <p>Capture work, track progress, and collaborate in real-time across views.</p>
     </header>
 
-    <TaskForm v-if="isAuthenticated" ref="taskFormRef" @create="handleCreate" />
+    <TaskForm v-if="authStore.canEdit" ref="taskFormRef" @create="handleCreate" />
 
     <section class="task-section" aria-labelledby="tasks-heading">
       <div v-if="!isAuthenticated" class="auth-prompt-card">

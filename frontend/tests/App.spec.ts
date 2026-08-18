@@ -39,7 +39,7 @@ const mountApp = () => {
   setActivePinia(pinia)
   const authStore = useAuthStore()
   authStore.token = 'mocked-jwt-token'
-  authStore.user = { id: 1, username: 'testuser' }
+  authStore.user = { id: 1, username: 'testuser', role: 'Admin' }
   return mount(App, { global: { plugins: [pinia] } })
 }
 
