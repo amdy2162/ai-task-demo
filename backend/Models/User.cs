@@ -9,6 +9,7 @@ public sealed class User
     public required string Username { get; set; }
     public required string PasswordHash { get; set; }
     public DateTime CreatedAt { get; set; }
+    public UserRole Role { get; set; } = UserRole.Viewer;
 
     // Navigation property
     public ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();

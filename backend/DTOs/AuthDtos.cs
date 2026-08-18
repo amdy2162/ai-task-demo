@@ -14,7 +14,8 @@ public sealed record LoginRequest(
 public sealed record UserProfileResponse(
     int Id,
     string Username,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string Role);
 
 public sealed record AuthResponse(
     string Token,
