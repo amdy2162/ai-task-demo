@@ -33,7 +33,7 @@ public sealed class AuthService(AppDbContext dbContext, JwtTokenService tokenSer
         await dbContext.SaveChangesAsync();
 
         var token = tokenService.GenerateToken(user);
-        return new AuthResponse(token, new UserProfileResponse(user.Id, user.Username, user.CreatedAt));
+        return new AuthResponse(token, new UserProfileResponse(user.Id, user.Username, user.CreatedAt, user.Role.ToString()));
     }
 
     public async Task<AuthResponse?> LoginAsync(string username, string password)
@@ -51,7 +51,7 @@ public sealed class AuthService(AppDbContext dbContext, JwtTokenService tokenSer
         }
 
         var token = tokenService.GenerateToken(user);
-        return new AuthResponse(token, new UserProfileResponse(user.Id, user.Username, user.CreatedAt));
+        return new AuthResponse(token, new UserProfileResponse(user.Id, user.Username, user.CreatedAt, user.Role.ToString()));
     }
 
     public async Task<UserProfileResponse?> GetUserProfileAsync(int userId)
@@ -62,6 +62,6 @@ public sealed class AuthService(AppDbContext dbContext, JwtTokenService tokenSer
             return null;
         }
 
-        return new UserProfileResponse(user.Id, user.Username, user.CreatedAt);
+        return new UserProfileResponse(user.Id, user.Username, user.CreatedAt, user.Role.ToString());
     }
 }

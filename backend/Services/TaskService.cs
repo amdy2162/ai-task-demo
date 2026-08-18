@@ -17,9 +17,14 @@ public sealed class TaskService(AppDbContext db)
         int page,
         int pageSize,
         int userId,
+        string userRole,
         CancellationToken cancellationToken)
     {
-        var query = db.Tasks.AsNoTracking().Where(item => item.UserId == userId);
+        var query = db.Tasks.AsNoTracking();
+        if (userRole != UserRole.Admin.ToString())
+        {
+            query = query.Where(item => item.UserId == userId);
+        }
 
         if (status is not null)
         {
@@ -78,10 +83,11 @@ public sealed class TaskService(AppDbContext db)
         int id,
         TaskState status,
         int userId,
+        string userRole,
         CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null || item.UserId != userId)
+        if (item is null || (userRole != UserRole.Admin.ToString() && item.UserId != userId))
         {
             return null;
         }
@@ -97,10 +103,11 @@ public sealed class TaskService(AppDbContext db)
         string? description,
         TaskState? status,
         int userId,
+        string userRole,
         CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null || item.UserId != userId)
+        if (item is null || (userRole != UserRole.Admin.ToString() && item.UserId != userId))
         {
             return null;
         }
@@ -115,10 +122,10 @@ public sealed class TaskService(AppDbContext db)
         return item;
     }
 
-    public async Task<bool> DeleteAsync(int id, int userId, CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(int id, int userId, string userRole, CancellationToken cancellationToken)
     {
         var item = await db.Tasks.FindAsync([id], cancellationToken);
-        if (item is null || item.UserId != userId)
+        if (item is null || (userRole != UserRole.Admin.ToString() && item.UserId != userId))
         {
             return false;
         }
