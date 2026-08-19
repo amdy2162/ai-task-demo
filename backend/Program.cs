@@ -9,7 +9,15 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddDistributedMemoryCache(); // 這裡可以隨時替換成 .AddStackExchangeRedisCache()
+
+// 讀取連線字串，如果沒有設定，預設為本機的 localhost:6379
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = redisConnectionString;
+    options.InstanceName = "AiTaskDemo_";
+});
+
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new TaskStatusJsonConverter()));
 builder.Services.AddSignalR();
