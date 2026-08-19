@@ -1,11 +1,13 @@
 using AiTaskDemo.Api.Data;
 using AiTaskDemo.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 using TaskState = AiTaskDemo.Api.Models.TaskStatus;
 
 namespace AiTaskDemo.Api.Services;
 
-public sealed class TaskService(AppDbContext db)
+public sealed class TaskService(AppDbContext db, IDistributedCache cache)
 {
     private static readonly TimeSpan TaipeiOffset = TimeSpan.FromHours(8);
 
@@ -20,6 +22,18 @@ public sealed class TaskService(AppDbContext db)
         string userRole,
         CancellationToken cancellationToken)
     {
+        // 1. 產生這個查詢專屬的 Cache Key
+        var cacheKey = $"Tasks_{userRole}_{userId}_{status}_{search}_{sortBy}_{sortOrder}_{page}_{pageSize}";
+        
+        // 2. 先去快取找找看
+        var cachedData = await cache.GetStringAsync(cacheKey, cancellationToken);
+        if (!string.IsNullOrEmpty(cachedData))
+        {
+            // 如果快取有資料，直接回傳！(速度極快)
+            return JsonSerializer.Deserialize<(List<TaskItem>, int)>(cachedData);
+        }
+
+        // 3. 如果快取沒有，才去資料庫查詢
         var query = db.Tasks.AsNoTracking();
         if (userRole != UserRole.Admin.ToString())
         {
@@ -54,7 +68,14 @@ public sealed class TaskService(AppDbContext db)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
 
-        return (items, totalCount);
+        var result = (items, totalCount);
+
+        // 4. 把查到的結果存進快取，設定 15 秒後過期
+        var options = new DistributedCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromSeconds(15));
+        await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result), options, cancellationToken);
+
+        return result;
     }
 
 

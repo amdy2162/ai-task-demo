@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddDistributedMemoryCache(); // 這裡可以隨時替換成 .AddStackExchangeRedisCache()
 builder.Services.AddControllers().AddJsonOptions(options =>
     options.JsonSerializerOptions.Converters.Add(new TaskStatusJsonConverter()));
 builder.Services.AddSignalR();
